@@ -482,7 +482,7 @@ class DetailedClientStatisticsDialog(QDialog):
     def export_client_stats(self):
         """Экспорт статистики клиента в PDF"""
         try:
-            from reportlab.lib.pagesizes import letter, A4
+            from reportlab.lib.pagesizes import A4
             from reportlab.lib import colors
             from reportlab.lib.units import inch
             from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer

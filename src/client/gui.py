@@ -327,7 +327,7 @@ class TimerWidget(QWidget):
         if self.is_unlimited:
             self.end_time = None
             self.total_seconds = None
-            self.remaining_seconds = None
+            self.remaining_seconds = 0  # Use 0 instead of None for consistency
         else:
             self.end_time = self.start_time + timedelta(minutes=duration_minutes)
             self.total_seconds = duration_minutes * 60
@@ -340,7 +340,7 @@ class TimerWidget(QWidget):
         # Флаги для уведомлений
         self.warning_shown = False
         # Adjust warning time for short sessions - don't warn if session is shorter than warning time
-        self.warning_minutes = min(self.config.warning_minutes, max(1, duration_minutes // 2)) if not self.is_unlimited and duration_minutes > 0 else self.config.warning_minutes
+        self.warning_minutes = self._calculate_warning_time(duration_minutes)
 
         # Таймер обновления
         self.update_timer = QTimer()
@@ -349,6 +349,21 @@ class TimerWidget(QWidget):
 
         self.is_hidden = False
         self.init_ui()
+
+    def _calculate_warning_time(self, duration_minutes: int) -> int:
+        """
+        Calculate appropriate warning time for a session
+        For short sessions, use half the duration (min 1 minute)
+        For longer sessions, use the configured warning time
+        """
+        if self.is_unlimited or duration_minutes <= 0:
+            return self.config.warning_minutes
+        
+        # For sessions shorter than warning time, use half the duration
+        if duration_minutes < self.config.warning_minutes:
+            return max(1, duration_minutes // 2)
+        
+        return self.config.warning_minutes
 
     def init_ui(self):
         """Инициализация интерфейса"""
