@@ -327,11 +327,11 @@ class TimerWidget(QWidget):
         if self.is_unlimited:
             self.end_time = None
             self.total_seconds = None
+            self.remaining_seconds = None
         else:
             self.end_time = self.start_time + timedelta(minutes=duration_minutes)
             self.total_seconds = duration_minutes * 60
-
-        self.remaining_seconds = self.total_seconds
+            self.remaining_seconds = self.total_seconds
 
         # Настройки тарификации
         self.cost_per_hour = session_data.get('cost_per_hour', 0.0)
@@ -339,7 +339,8 @@ class TimerWidget(QWidget):
 
         # Флаги для уведомлений
         self.warning_shown = False
-        self.warning_minutes = self.config.warning_minutes
+        # Adjust warning time for short sessions - don't warn if session is shorter than warning time
+        self.warning_minutes = min(self.config.warning_minutes, max(1, duration_minutes // 2)) if not self.is_unlimited and duration_minutes > 0 else self.config.warning_minutes
 
         # Таймер обновления
         self.update_timer = QTimer()
@@ -358,6 +359,8 @@ class TimerWidget(QWidget):
             Qt.WindowType.FramelessWindowHint |
             Qt.WindowType.Tool
         )
+        # Enable transparency
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
         layout = QVBoxLayout()
         layout.setContentsMargins(10, 10, 10, 10)
@@ -528,18 +531,27 @@ class TimerWidget(QWidget):
                 }}
             """)
         else:
-            # Минимизируем виджет - делаем его почти невидимым
+            # Минимизируем виджет - делаем его почти невидимым с прозрачным фоном
             self.resize(30, 20)
             self.timer_label.hide()
             self.cost_label.hide()
             self.btn_hide.setText("⏱")
             self.is_hidden = True
-            # Уменьшаем прозрачность (более прозрачный)
+            # Полностью прозрачный фон, только иконка видна
             self.setStyleSheet("""
                 QWidget {
-                    background-color: rgba(40, 40, 40, 0.3);
-                    color: rgba(255, 255, 255, 0.5);
+                    background-color: transparent;
+                    color: rgba(255, 255, 255, 0.6);
                     border-radius: 5px;
+                }
+                QPushButton {
+                    background: transparent;
+                    color: rgba(255, 255, 255, 0.6);
+                    font-size: 16px;
+                    border: none;
+                }
+                QPushButton:hover {
+                    color: rgba(255, 255, 255, 0.9);
                 }
             """)
 

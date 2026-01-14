@@ -6,14 +6,15 @@ import sys
 import asyncio
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QTableWidget, QTableWidgetItem, QLabel, QDialog,
     QSpinBox, QDoubleSpinBox, QCheckBox, QLineEdit, QMessageBox,
-    QTabWidget, QGroupBox, QFormLayout, QHeaderView
+    QTabWidget, QGroupBox, QFormLayout, QHeaderView, QDateEdit, QComboBox,
+    QInputDialog
 )
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread, QDate
 from PyQt6.QtGui import QIcon, QColor
 import qasync
 
@@ -263,6 +264,379 @@ class SessionDialog(QDialog):
         return (total_minutes, False)
 
 
+class DetailedClientStatisticsDialog(QDialog):
+    """Диалог детальной статистики по клиенту"""
+
+    def __init__(self, client: ClientModel, db: Database, parent=None):
+        super().__init__(parent)
+        self.client = client
+        self.db = db
+        self.setWindowTitle(f"Статистика клиента: {client.name}")
+        self.setModal(True)
+        self.setMinimumSize(900, 600)
+        self.init_ui()
+        self.update_statistics()
+
+    def init_ui(self):
+        layout = QVBoxLayout()
+        layout.setSpacing(15)
+
+        # Заголовок с информацией о клиенте
+        header = QLabel(f"📊 Детальная статистика: {self.client.name}")
+        header.setStyleSheet("font-size: 16px; font-weight: bold; padding: 10px;")
+        layout.addWidget(header)
+
+        # Фильтры
+        filter_group = QGroupBox("Фильтры")
+        filter_layout = QHBoxLayout()
+
+        # Фильтр по периоду
+        filter_layout.addWidget(QLabel("Период:"))
+        self.period_combo = QComboBox()
+        self.period_combo.addItems(["Все время", "Сегодня", "Эта неделя", "Этот месяц", "Произвольный период"])
+        self.period_combo.currentIndexChanged.connect(self.on_period_changed)
+        filter_layout.addWidget(self.period_combo)
+
+        # Даты для произвольного периода
+        filter_layout.addWidget(QLabel("От:"))
+        self.start_date = QDateEdit()
+        self.start_date.setCalendarPopup(True)
+        self.start_date.setDate(QDate.currentDate().addMonths(-1))
+        self.start_date.setEnabled(False)
+        self.start_date.dateChanged.connect(self.update_statistics)
+        filter_layout.addWidget(self.start_date)
+
+        filter_layout.addWidget(QLabel("До:"))
+        self.end_date = QDateEdit()
+        self.end_date.setCalendarPopup(True)
+        self.end_date.setDate(QDate.currentDate())
+        self.end_date.setEnabled(False)
+        self.end_date.dateChanged.connect(self.update_statistics)
+        filter_layout.addWidget(self.end_date)
+
+        filter_layout.addStretch()
+
+        # Кнопка применить фильтр
+        btn_apply_filter = QPushButton("🔍 Применить")
+        btn_apply_filter.clicked.connect(self.update_statistics)
+        btn_apply_filter.setStyleSheet(BUTTON_STYLE_INFO)
+        filter_layout.addWidget(btn_apply_filter)
+
+        filter_group.setLayout(filter_layout)
+        layout.addWidget(filter_group)
+
+        # Сводка
+        summary_group = QGroupBox("Сводка")
+        summary_layout = QHBoxLayout()
+
+        self.total_sessions_label = QLabel("Сессий: 0")
+        self.total_sessions_label.setStyleSheet("font-size: 14px; font-weight: bold; padding: 10px;")
+        summary_layout.addWidget(self.total_sessions_label)
+
+        self.total_time_label = QLabel("Общее время: 0 мин")
+        self.total_time_label.setStyleSheet("font-size: 14px; font-weight: bold; padding: 10px;")
+        summary_layout.addWidget(self.total_time_label)
+
+        self.total_cost_label = QLabel("Общая стоимость: 0.00 руб")
+        self.total_cost_label.setStyleSheet("font-size: 14px; font-weight: bold; padding: 10px;")
+        summary_layout.addWidget(self.total_cost_label)
+
+        summary_layout.addStretch()
+        summary_group.setLayout(summary_layout)
+        layout.addWidget(summary_group)
+
+        # Таблица сессий
+        self.sessions_table = QTableWidget()
+        self.sessions_table.setColumnCount(5)
+        self.sessions_table.setHorizontalHeaderLabels([
+            "ID", "Начало", "Окончание", "Длительность (мин)", "Стоимость (руб)"
+        ])
+        self.sessions_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.sessions_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.sessions_table.setAlternatingRowColors(True)
+        self.sessions_table.setStyleSheet(TABLE_STYLE)
+        layout.addWidget(self.sessions_table)
+
+        # Кнопки действий
+        buttons_layout = QHBoxLayout()
+
+        btn_export = QPushButton("📄 Экспорт в PDF")
+        btn_export.clicked.connect(self.export_client_stats)
+        btn_export.setMinimumHeight(35)
+        btn_export.setMinimumWidth(200)
+        btn_export.setStyleSheet(BUTTON_STYLE_INFO)
+        buttons_layout.addWidget(btn_export)
+
+        btn_clear = QPushButton("🗑️ Очистить статистику")
+        btn_clear.clicked.connect(self.clear_statistics)
+        btn_clear.setMinimumHeight(35)
+        btn_clear.setMinimumWidth(200)
+        btn_clear.setStyleSheet(BUTTON_STYLE_DANGER)
+        buttons_layout.addWidget(btn_clear)
+
+        btn_close = QPushButton("✖️ Закрыть")
+        btn_close.clicked.connect(self.accept)
+        btn_close.setMinimumHeight(35)
+        btn_close.setMinimumWidth(200)
+        btn_close.setStyleSheet(BUTTON_STYLE_SECONDARY)
+        buttons_layout.addWidget(btn_close)
+
+        buttons_layout.addStretch()
+        layout.addLayout(buttons_layout)
+
+        self.setLayout(layout)
+
+    def on_period_changed(self, index):
+        """Обработка изменения периода"""
+        # Включаем/выключаем поля дат для произвольного периода
+        custom_period = (index == 4)  # "Произвольный период"
+        self.start_date.setEnabled(custom_period)
+        self.end_date.setEnabled(custom_period)
+        
+        if not custom_period:
+            self.update_statistics()
+
+    def get_date_range(self):
+        """Получить диапазон дат на основе выбранного фильтра"""
+        period_index = self.period_combo.currentIndex()
+        current_date = datetime.now()
+        
+        if period_index == 0:  # Все время
+            return None, None
+        elif period_index == 1:  # Сегодня
+            start = current_date.replace(hour=0, minute=0, second=0, microsecond=0)
+            end = current_date
+            return start, end
+        elif period_index == 2:  # Эта неделя
+            start = current_date - timedelta(days=current_date.weekday())
+            start = start.replace(hour=0, minute=0, second=0, microsecond=0)
+            end = current_date
+            return start, end
+        elif period_index == 3:  # Этот месяц
+            start = current_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            end = current_date
+            return start, end
+        elif period_index == 4:  # Произвольный период
+            start_date = self.start_date.date().toPyDate()
+            end_date = self.end_date.date().toPyDate()
+            start = datetime.combine(start_date, datetime.min.time())
+            end = datetime.combine(end_date, datetime.max.time())
+            return start, end
+        
+        return None, None
+
+    def update_statistics(self):
+        """Обновление статистики"""
+        db_session = self.db.get_session()
+        try:
+            # Получаем диапазон дат
+            start_date, end_date = self.get_date_range()
+            
+            # Базовый запрос
+            query = db_session.query(SessionModel).filter_by(client_id=self.client.id)
+            
+            # Применяем фильтр по датам
+            if start_date:
+                query = query.filter(SessionModel.start_time >= start_date)
+            if end_date:
+                query = query.filter(SessionModel.start_time <= end_date)
+            
+            # Сортируем по времени начала
+            sessions = query.order_by(SessionModel.start_time.desc()).all()
+            
+            # Обновляем таблицу
+            self.sessions_table.setRowCount(len(sessions))
+            
+            total_sessions = len(sessions)
+            total_duration = 0
+            total_cost = 0.0
+            
+            for row, session in enumerate(sessions):
+                self.sessions_table.setItem(row, 0, QTableWidgetItem(str(session.id)))
+                
+                start_time = session.start_time.strftime("%Y-%m-%d %H:%M:%S")
+                self.sessions_table.setItem(row, 1, QTableWidgetItem(start_time))
+                
+                end_time = session.end_time.strftime("%Y-%m-%d %H:%M:%S") if session.end_time else "Активна"
+                self.sessions_table.setItem(row, 2, QTableWidgetItem(end_time))
+                
+                duration = session.actual_duration if session.actual_duration else 0
+                self.sessions_table.setItem(row, 3, QTableWidgetItem(str(duration)))
+                total_duration += duration
+                
+                cost = session.cost if session.cost else 0.0
+                self.sessions_table.setItem(row, 4, QTableWidgetItem(f"{cost:.2f}"))
+                total_cost += cost
+            
+            # Обновляем сводку
+            self.total_sessions_label.setText(f"Сессий: {total_sessions}")
+            self.total_time_label.setText(f"Общее время: {total_duration} мин ({total_duration // 60} ч {total_duration % 60} мин)")
+            self.total_cost_label.setText(f"Общая стоимость: {total_cost:.2f} руб")
+            
+        except Exception as e:
+            logger.error(f"Error updating client statistics: {e}")
+            QMessageBox.critical(self, "Ошибка", f"Не удалось обновить статистику:\n{str(e)}")
+        finally:
+            db_session.close()
+
+    def export_client_stats(self):
+        """Экспорт статистики клиента в PDF"""
+        try:
+            from reportlab.lib.pagesizes import letter, A4
+            from reportlab.lib import colors
+            from reportlab.lib.units import inch
+            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.pdfbase import pdfmetrics
+            from reportlab.pdfbase.ttfonts import TTFont
+            import os
+            
+            # Генерируем имя файла
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"statistics_{self.client.name}_{timestamp}.pdf"
+            
+            # Создаем PDF
+            doc = SimpleDocTemplate(filename, pagesize=A4)
+            elements = []
+            styles = getSampleStyleSheet()
+            
+            # Заголовок
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                parent=styles['Heading1'],
+                fontSize=18,
+                textColor=colors.HexColor('#2c3e50'),
+                spaceAfter=30,
+                alignment=1  # Center
+            )
+            
+            title = Paragraph(f"Статистика клиента: {self.client.name}", title_style)
+            elements.append(title)
+            elements.append(Spacer(1, 12))
+            
+            # Период
+            start_date, end_date = self.get_date_range()
+            if start_date and end_date:
+                period_text = f"Период: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}"
+            else:
+                period_text = "Период: Все время"
+            
+            period = Paragraph(period_text, styles['Normal'])
+            elements.append(period)
+            elements.append(Spacer(1, 12))
+            
+            # Сводная информация
+            summary_data = [
+                ['Метрика', 'Значение'],
+                ['Количество сессий', self.total_sessions_label.text().split(': ')[1]],
+                ['Общее время', self.total_time_label.text().split(': ')[1]],
+                ['Общая стоимость', self.total_cost_label.text().split(': ')[1]]
+            ]
+            
+            summary_table = Table(summary_data, colWidths=[3*inch, 3*inch])
+            summary_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            
+            elements.append(summary_table)
+            elements.append(Spacer(1, 20))
+            
+            # Детальная таблица сессий
+            details_label = Paragraph("Детальная информация о сессиях", styles['Heading2'])
+            elements.append(details_label)
+            elements.append(Spacer(1, 12))
+            
+            # Данные таблицы
+            table_data = [['ID', 'Начало', 'Окончание', 'Длительность', 'Стоимость']]
+            
+            for row in range(self.sessions_table.rowCount()):
+                row_data = []
+                for col in range(self.sessions_table.columnCount()):
+                    item = self.sessions_table.item(row, col)
+                    row_data.append(item.text() if item else "")
+                table_data.append(row_data)
+            
+            sessions_table = Table(table_data, colWidths=[0.5*inch, 1.5*inch, 1.5*inch, 1.2*inch, 1.2*inch])
+            sessions_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ]))
+            
+            elements.append(sessions_table)
+            
+            # Генерируем PDF
+            doc.build(elements)
+            
+            QMessageBox.information(self, "Успех", f"Статистика экспортирована в файл:\n{filename}")
+            logger.info(f"Client statistics exported to {filename}")
+            
+        except ImportError:
+            QMessageBox.warning(
+                self, "Ошибка", 
+                "Для экспорта в PDF требуется библиотека reportlab.\nУстановите её командой: pip install reportlab"
+            )
+        except Exception as e:
+            logger.error(f"Error exporting client statistics: {e}", exc_info=True)
+            QMessageBox.critical(self, "Ошибка", f"Не удалось экспортировать статистику:\n{str(e)}")
+
+    def clear_statistics(self):
+        """Очистка статистики клиента"""
+        reply = QMessageBox.question(
+            self, "Подтверждение",
+            f"Вы уверены, что хотите очистить статистику клиента {self.client.name}?\n\n"
+            "Это действие удалит все записи о сессиях для выбранного периода.\n"
+            "Это действие необратимо!",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            db_session = self.db.get_session()
+            try:
+                # Получаем диапазон дат
+                start_date, end_date = self.get_date_range()
+                
+                # Базовый запрос
+                query = db_session.query(SessionModel).filter_by(client_id=self.client.id)
+                
+                # Применяем фильтр по датам
+                if start_date:
+                    query = query.filter(SessionModel.start_time >= start_date)
+                if end_date:
+                    query = query.filter(SessionModel.start_time <= end_date)
+                
+                # Удаляем сессии
+                count = query.delete()
+                db_session.commit()
+                
+                QMessageBox.information(self, "Успех", f"Удалено записей: {count}")
+                logger.info(f"Cleared {count} session records for client {self.client.id}")
+                
+                # Обновляем отображение
+                self.update_statistics()
+                
+            except Exception as e:
+                logger.error(f"Error clearing client statistics: {e}")
+                db_session.rollback()
+                QMessageBox.critical(self, "Ошибка", f"Не удалось очистить статистику:\n{str(e)}")
+            finally:
+                db_session.close()
+
+
 class MainWindow(QMainWindow):
     """Главное окно серверного приложения"""
 
@@ -340,21 +714,21 @@ class MainWindow(QMainWindow):
         self.btn_start_session = QPushButton("🎮 Начать сессию")
         self.btn_start_session.clicked.connect(self.start_session)
         self.btn_start_session.setMinimumHeight(40)
-        self.btn_start_session.setMinimumWidth(200)
+        self.btn_start_session.setMinimumWidth(250)
         self.btn_start_session.setStyleSheet(BUTTON_STYLE_PRIMARY)
         buttons_layout.addWidget(self.btn_start_session)
 
         self.btn_stop_session = QPushButton("⏹️ Остановить сессию")
         self.btn_stop_session.clicked.connect(self.stop_session)
         self.btn_stop_session.setMinimumHeight(40)
-        self.btn_stop_session.setMinimumWidth(200)
+        self.btn_stop_session.setMinimumWidth(250)
         self.btn_stop_session.setStyleSheet(BUTTON_STYLE_DANGER)
         buttons_layout.addWidget(self.btn_stop_session)
 
         self.btn_shutdown = QPushButton("🔌 Выключить ПК")
         self.btn_shutdown.clicked.connect(self.shutdown_client)
         self.btn_shutdown.setMinimumHeight(40)
-        self.btn_shutdown.setMinimumWidth(200)
+        self.btn_shutdown.setMinimumWidth(250)
         self.btn_shutdown.setStyleSheet(BUTTON_STYLE_WARNING)
         buttons_layout.addWidget(self.btn_shutdown)
 
@@ -407,6 +781,7 @@ class MainWindow(QMainWindow):
         self.client_stats_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.client_stats_table.setAlternatingRowColors(True)
         self.client_stats_table.setStyleSheet(TABLE_STYLE)
+        self.client_stats_table.doubleClicked.connect(self.show_detailed_client_stats)
         by_client_layout.addWidget(self.client_stats_table)
         
         stats_tabs.addTab(by_client_widget, "По клиентам")
@@ -417,14 +792,21 @@ class MainWindow(QMainWindow):
         self.btn_export_pdf = QPushButton("📄 Экспорт в PDF")
         self.btn_export_pdf.clicked.connect(self.export_to_pdf)
         self.btn_export_pdf.setMinimumHeight(40)
-        self.btn_export_pdf.setMinimumWidth(200)
+        self.btn_export_pdf.setMinimumWidth(250)
         self.btn_export_pdf.setStyleSheet(BUTTON_STYLE_INFO)
         buttons_layout.addWidget(self.btn_export_pdf)
+
+        self.btn_clear_all_stats = QPushButton("🗑️ Очистить всю статистику")
+        self.btn_clear_all_stats.clicked.connect(self.clear_all_statistics)
+        self.btn_clear_all_stats.setMinimumHeight(40)
+        self.btn_clear_all_stats.setMinimumWidth(250)
+        self.btn_clear_all_stats.setStyleSheet(BUTTON_STYLE_DANGER)
+        buttons_layout.addWidget(self.btn_clear_all_stats)
 
         self.btn_refresh_stats = QPushButton("🔄 Обновить")
         self.btn_refresh_stats.clicked.connect(self.update_sessions_table)
         self.btn_refresh_stats.setMinimumHeight(40)
-        self.btn_refresh_stats.setMinimumWidth(200)
+        self.btn_refresh_stats.setMinimumWidth(250)
         self.btn_refresh_stats.setStyleSheet(BUTTON_STYLE_PRIMARY)
         buttons_layout.addWidget(self.btn_refresh_stats)
 
@@ -645,8 +1027,43 @@ class MainWindow(QMainWindow):
                 self.client_stats_table.setItem(row, 3, QTableWidgetItem(f"{avg_duration:.1f}"))
                 self.client_stats_table.setItem(row, 4, QTableWidgetItem(f"{total_cost:.2f}"))
                 
+                # Сохраняем ID клиента в первом элементе строки для последующего использования
+                item = self.client_stats_table.item(row, 0)
+                if item:
+                    item.setData(Qt.ItemDataRole.UserRole, client.id)
+                
         except Exception as e:
             logger.error(f"Error updating client stats table: {e}")
+
+    def show_detailed_client_stats(self, index):
+        """Показать детальную статистику по клиенту"""
+        try:
+            row = index.row()
+            # Получаем ID клиента из данных первого элемента строки
+            item = self.client_stats_table.item(row, 0)
+            if not item:
+                return
+            
+            client_id = item.data(Qt.ItemDataRole.UserRole)
+            if not client_id:
+                return
+            
+            # Получаем клиента из БД
+            db_session = self.db.get_session()
+            try:
+                client = db_session.query(ClientModel).filter_by(id=client_id).first()
+                if client:
+                    # Открываем диалог детальной статистики
+                    dialog = DetailedClientStatisticsDialog(client, self.db, self)
+                    dialog.exec()
+                else:
+                    QMessageBox.warning(self, "Ошибка", "Клиент не найден")
+            finally:
+                db_session.close()
+                
+        except Exception as e:
+            logger.error(f"Error showing detailed client stats: {e}", exc_info=True)
+            QMessageBox.critical(self, "Ошибка", f"Не удалось открыть детальную статистику:\n{str(e)}")
 
     def start_session(self):
         """Начать сессию для выбранного клиента"""
@@ -869,6 +1286,48 @@ class MainWindow(QMainWindow):
         """Экспорт отчета в PDF"""
         # TODO: Реализовать экспорт в PDF
         QMessageBox.information(self, "Информация", "Функция экспорта в разработке")
+
+    def clear_all_statistics(self):
+        """Очистить всю статистику"""
+        reply = QMessageBox.question(
+            self, "Подтверждение",
+            "⚠️ ВНИМАНИЕ!\n\n"
+            "Вы уверены, что хотите удалить ВСЮ статистику?\n\n"
+            "Это действие удалит все записи о сессиях для всех клиентов.\n"
+            "Информация о самих клиентах (имена, IP-адреса) будет сохранена.\n\n"
+            "Это действие необратимо!",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            # Дополнительное подтверждение
+            confirm_text, ok = QInputDialog.getText(
+                self, "Подтверждение удаления",
+                "Для подтверждения введите: УДАЛИТЬ"
+            )
+            
+            if ok and confirm_text == "УДАЛИТЬ":
+                db_session = self.db.get_session()
+                try:
+                    # Удаляем все сессии
+                    count = db_session.query(SessionModel).delete()
+                    db_session.commit()
+                    
+                    QMessageBox.information(self, "Успех", f"Удалено записей: {count}")
+                    logger.info(f"Cleared all statistics: {count} session records deleted")
+                    
+                    # Обновляем отображение
+                    self.update_sessions_table()
+                    
+                except Exception as e:
+                    logger.error(f"Error clearing all statistics: {e}")
+                    db_session.rollback()
+                    QMessageBox.critical(self, "Ошибка", f"Не удалось очистить статистику:\n{str(e)}")
+                finally:
+                    db_session.close()
+            else:
+                QMessageBox.information(self, "Отмена", "Операция отменена")
 
     def closeEvent(self, event):
         """Обработка закрытия окна"""
