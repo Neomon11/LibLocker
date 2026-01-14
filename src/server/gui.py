@@ -340,18 +340,21 @@ class MainWindow(QMainWindow):
         self.btn_start_session = QPushButton("🎮 Начать сессию")
         self.btn_start_session.clicked.connect(self.start_session)
         self.btn_start_session.setMinimumHeight(40)
+        self.btn_start_session.setMinimumWidth(200)
         self.btn_start_session.setStyleSheet(BUTTON_STYLE_PRIMARY)
         buttons_layout.addWidget(self.btn_start_session)
 
         self.btn_stop_session = QPushButton("⏹️ Остановить сессию")
         self.btn_stop_session.clicked.connect(self.stop_session)
         self.btn_stop_session.setMinimumHeight(40)
+        self.btn_stop_session.setMinimumWidth(200)
         self.btn_stop_session.setStyleSheet(BUTTON_STYLE_DANGER)
         buttons_layout.addWidget(self.btn_stop_session)
 
         self.btn_shutdown = QPushButton("🔌 Выключить ПК")
         self.btn_shutdown.clicked.connect(self.shutdown_client)
         self.btn_shutdown.setMinimumHeight(40)
+        self.btn_shutdown.setMinimumWidth(200)
         self.btn_shutdown.setStyleSheet(BUTTON_STYLE_WARNING)
         buttons_layout.addWidget(self.btn_shutdown)
 
@@ -370,7 +373,14 @@ class MainWindow(QMainWindow):
         header_label.setStyleSheet("font-size: 16px; font-weight: bold; padding: 10px;")
         layout.addWidget(header_label)
 
-        # Таблица сессий
+        # Вкладки для разных представлений
+        stats_tabs = QTabWidget()
+        layout.addWidget(stats_tabs)
+
+        # Вкладка "Все сессии"
+        all_sessions_widget = QWidget()
+        all_sessions_layout = QVBoxLayout(all_sessions_widget)
+        
         self.sessions_table = QTableWidget()
         self.sessions_table.setColumnCount(6)
         self.sessions_table.setHorizontalHeaderLabels([
@@ -380,7 +390,26 @@ class MainWindow(QMainWindow):
         self.sessions_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.sessions_table.setAlternatingRowColors(True)
         self.sessions_table.setStyleSheet(TABLE_STYLE)
-        layout.addWidget(self.sessions_table)
+        all_sessions_layout.addWidget(self.sessions_table)
+        
+        stats_tabs.addTab(all_sessions_widget, "Все сессии")
+
+        # Вкладка "По клиентам"
+        by_client_widget = QWidget()
+        by_client_layout = QVBoxLayout(by_client_widget)
+        
+        self.client_stats_table = QTableWidget()
+        self.client_stats_table.setColumnCount(5)
+        self.client_stats_table.setHorizontalHeaderLabels([
+            "Клиент", "Количество сессий", "Общее время (мин)", "Средняя длительность (мин)", "Общая стоимость (руб)"
+        ])
+        self.client_stats_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.client_stats_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.client_stats_table.setAlternatingRowColors(True)
+        self.client_stats_table.setStyleSheet(TABLE_STYLE)
+        by_client_layout.addWidget(self.client_stats_table)
+        
+        stats_tabs.addTab(by_client_widget, "По клиентам")
 
         # Кнопки
         buttons_layout = QHBoxLayout()
@@ -388,12 +417,14 @@ class MainWindow(QMainWindow):
         self.btn_export_pdf = QPushButton("📄 Экспорт в PDF")
         self.btn_export_pdf.clicked.connect(self.export_to_pdf)
         self.btn_export_pdf.setMinimumHeight(40)
+        self.btn_export_pdf.setMinimumWidth(200)
         self.btn_export_pdf.setStyleSheet(BUTTON_STYLE_INFO)
         buttons_layout.addWidget(self.btn_export_pdf)
 
         self.btn_refresh_stats = QPushButton("🔄 Обновить")
         self.btn_refresh_stats.clicked.connect(self.update_sessions_table)
         self.btn_refresh_stats.setMinimumHeight(40)
+        self.btn_refresh_stats.setMinimumWidth(200)
         self.btn_refresh_stats.setStyleSheet(BUTTON_STYLE_PRIMARY)
         buttons_layout.addWidget(self.btn_refresh_stats)
 
@@ -581,10 +612,41 @@ class MainWindow(QMainWindow):
                 cost = f"{session.cost:.2f} руб." if session.cost > 0 else "Бесплатно"
                 self.sessions_table.setItem(row, 5, QTableWidgetItem(cost))
 
+            # Обновление статистики по клиентам
+            self.update_client_stats_table(db_session)
+
         except Exception as e:
             logger.error(f"Error updating sessions table: {e}")
         finally:
             db_session.close()
+
+    def update_client_stats_table(self, db_session):
+        """Обновление таблицы статистики по клиентам"""
+        try:
+            # Получаем всех клиентов
+            clients = db_session.query(ClientModel).all()
+            
+            self.client_stats_table.setRowCount(len(clients))
+            
+            for row, client in enumerate(clients):
+                # Получаем все сессии клиента
+                sessions = db_session.query(SessionModel).filter_by(client_id=client.id).all()
+                
+                # Подсчитываем статистику
+                total_sessions = len(sessions)
+                total_duration = sum(s.actual_duration for s in sessions if s.actual_duration)
+                total_cost = sum(s.cost for s in sessions if s.cost)
+                avg_duration = total_duration / total_sessions if total_sessions > 0 else 0
+                
+                # Заполняем таблицу
+                self.client_stats_table.setItem(row, 0, QTableWidgetItem(client.name))
+                self.client_stats_table.setItem(row, 1, QTableWidgetItem(str(total_sessions)))
+                self.client_stats_table.setItem(row, 2, QTableWidgetItem(f"{total_duration:.0f}"))
+                self.client_stats_table.setItem(row, 3, QTableWidgetItem(f"{avg_duration:.1f}"))
+                self.client_stats_table.setItem(row, 4, QTableWidgetItem(f"{total_cost:.2f}"))
+                
+        except Exception as e:
+            logger.error(f"Error updating client stats table: {e}")
 
     def start_session(self):
         """Начать сессию для выбранного клиента"""
