@@ -25,6 +25,130 @@ from ..shared.utils import hash_password
 
 logger = logging.getLogger(__name__)
 
+# Constants
+MIN_PASSWORD_LENGTH = 8
+RECOMMENDED_PASSWORD_LENGTH = 8
+
+# Button styles
+BUTTON_STYLE_PRIMARY = """
+    QPushButton {
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-weight: bold;
+        font-size: 14px;
+    }
+    QPushButton:hover {
+        background-color: #45a049;
+    }
+    QPushButton:pressed {
+        background-color: #3d8b40;
+    }
+"""
+
+BUTTON_STYLE_DANGER = """
+    QPushButton {
+        background-color: #f44336;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-weight: bold;
+        font-size: 14px;
+    }
+    QPushButton:hover {
+        background-color: #da190b;
+    }
+    QPushButton:pressed {
+        background-color: #c1160a;
+    }
+"""
+
+BUTTON_STYLE_WARNING = """
+    QPushButton {
+        background-color: #ff9800;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-weight: bold;
+        font-size: 14px;
+    }
+    QPushButton:hover {
+        background-color: #e68900;
+    }
+    QPushButton:pressed {
+        background-color: #cc7a00;
+    }
+"""
+
+BUTTON_STYLE_INFO = """
+    QPushButton {
+        background-color: #2196F3;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-weight: bold;
+        font-size: 14px;
+    }
+    QPushButton:hover {
+        background-color: #1976D2;
+    }
+    QPushButton:pressed {
+        background-color: #1565C0;
+    }
+"""
+
+BUTTON_STYLE_SECONDARY = """
+    QPushButton {
+        background-color: #757575;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-weight: bold;
+        font-size: 14px;
+    }
+    QPushButton:hover {
+        background-color: #616161;
+    }
+    QPushButton:pressed {
+        background-color: #424242;
+    }
+"""
+
+BUTTON_STYLE_PURPLE = """
+    QPushButton {
+        background-color: #9C27B0;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-weight: bold;
+        font-size: 14px;
+    }
+    QPushButton:hover {
+        background-color: #7B1FA2;
+    }
+    QPushButton:pressed {
+        background-color: #6A1B9A;
+    }
+"""
+
+TABLE_STYLE = """
+    QTableWidget {
+        gridline-color: #d0d0d0;
+        background-color: white;
+    }
+    QTableWidget::item:selected {
+        background-color: #0078d7;
+        color: white;
+    }
+    QHeaderView::section {
+        background-color: #f0f0f0;
+        padding: 5px;
+        border: 1px solid #d0d0d0;
+        font-weight: bold;
+    }
+"""
+
 
 class ServerThread(QThread):
     """Поток для запуска WebSocket сервера"""
@@ -66,36 +190,12 @@ class SessionDialog(QDialog):
         
         self.btn_30min = QPushButton("⏱️ +30 минут")
         self.btn_30min.setMinimumHeight(50)
-        self.btn_30min.setStyleSheet("""
-            QPushButton {
-                background-color: #2196F3;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                font-weight: bold;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #1976D2;
-            }
-        """)
+        self.btn_30min.setStyleSheet(BUTTON_STYLE_INFO)
         quick_buttons.addWidget(self.btn_30min)
         
         self.btn_unlimited = QPushButton("♾️ Безлимит")
         self.btn_unlimited.setMinimumHeight(50)
-        self.btn_unlimited.setStyleSheet("""
-            QPushButton {
-                background-color: #9C27B0;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                font-weight: bold;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #7B1FA2;
-            }
-        """)
+        self.btn_unlimited.setStyleSheet(BUTTON_STYLE_PURPLE)
         quick_buttons.addWidget(self.btn_unlimited)
         
         quick_group.setLayout(quick_buttons)
@@ -123,36 +223,12 @@ class SessionDialog(QDialog):
         
         self.btn_ok = QPushButton("✅ Создать")
         self.btn_ok.setMinimumHeight(40)
-        self.btn_ok.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                font-weight: bold;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-        """)
+        self.btn_ok.setStyleSheet(BUTTON_STYLE_PRIMARY)
         buttons.addWidget(self.btn_ok)
         
         self.btn_cancel = QPushButton("❌ Отмена")
         self.btn_cancel.setMinimumHeight(40)
-        self.btn_cancel.setStyleSheet("""
-            QPushButton {
-                background-color: #757575;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                font-weight: bold;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #616161;
-            }
-        """)
+        self.btn_cancel.setStyleSheet(BUTTON_STYLE_SECONDARY)
         buttons.addWidget(self.btn_cancel)
         
         layout.addLayout(buttons)
@@ -255,22 +331,7 @@ class MainWindow(QMainWindow):
         self.clients_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.clients_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.clients_table.setAlternatingRowColors(True)
-        self.clients_table.setStyleSheet("""
-            QTableWidget {
-                gridline-color: #d0d0d0;
-                background-color: white;
-            }
-            QTableWidget::item:selected {
-                background-color: #0078d7;
-                color: white;
-            }
-            QHeaderView::section {
-                background-color: #f0f0f0;
-                padding: 5px;
-                border: 1px solid #d0d0d0;
-                font-weight: bold;
-            }
-        """)
+        self.clients_table.setStyleSheet(TABLE_STYLE)
         layout.addWidget(self.clients_table)
 
         # Кнопки управления
@@ -279,64 +340,19 @@ class MainWindow(QMainWindow):
         self.btn_start_session = QPushButton("🎮 Начать сессию")
         self.btn_start_session.clicked.connect(self.start_session)
         self.btn_start_session.setMinimumHeight(40)
-        self.btn_start_session.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                font-weight: bold;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-            QPushButton:pressed {
-                background-color: #3d8b40;
-            }
-        """)
+        self.btn_start_session.setStyleSheet(BUTTON_STYLE_PRIMARY)
         buttons_layout.addWidget(self.btn_start_session)
 
         self.btn_stop_session = QPushButton("⏹️ Остановить сессию")
         self.btn_stop_session.clicked.connect(self.stop_session)
         self.btn_stop_session.setMinimumHeight(40)
-        self.btn_stop_session.setStyleSheet("""
-            QPushButton {
-                background-color: #f44336;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                font-weight: bold;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #da190b;
-            }
-            QPushButton:pressed {
-                background-color: #c1160a;
-            }
-        """)
+        self.btn_stop_session.setStyleSheet(BUTTON_STYLE_DANGER)
         buttons_layout.addWidget(self.btn_stop_session)
 
         self.btn_shutdown = QPushButton("🔌 Выключить ПК")
         self.btn_shutdown.clicked.connect(self.shutdown_client)
         self.btn_shutdown.setMinimumHeight(40)
-        self.btn_shutdown.setStyleSheet("""
-            QPushButton {
-                background-color: #ff9800;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                font-weight: bold;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #e68900;
-            }
-            QPushButton:pressed {
-                background-color: #cc7a00;
-            }
-        """)
+        self.btn_shutdown.setStyleSheet(BUTTON_STYLE_WARNING)
         buttons_layout.addWidget(self.btn_shutdown)
 
         buttons_layout.addStretch()
@@ -363,22 +379,7 @@ class MainWindow(QMainWindow):
         self.sessions_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.sessions_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.sessions_table.setAlternatingRowColors(True)
-        self.sessions_table.setStyleSheet("""
-            QTableWidget {
-                gridline-color: #d0d0d0;
-                background-color: white;
-            }
-            QTableWidget::item:selected {
-                background-color: #0078d7;
-                color: white;
-            }
-            QHeaderView::section {
-                background-color: #f0f0f0;
-                padding: 5px;
-                border: 1px solid #d0d0d0;
-                font-weight: bold;
-            }
-        """)
+        self.sessions_table.setStyleSheet(TABLE_STYLE)
         layout.addWidget(self.sessions_table)
 
         # Кнопки
@@ -387,43 +388,13 @@ class MainWindow(QMainWindow):
         self.btn_export_pdf = QPushButton("📄 Экспорт в PDF")
         self.btn_export_pdf.clicked.connect(self.export_to_pdf)
         self.btn_export_pdf.setMinimumHeight(40)
-        self.btn_export_pdf.setStyleSheet("""
-            QPushButton {
-                background-color: #2196F3;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                font-weight: bold;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #1976D2;
-            }
-            QPushButton:pressed {
-                background-color: #1565C0;
-            }
-        """)
+        self.btn_export_pdf.setStyleSheet(BUTTON_STYLE_INFO)
         buttons_layout.addWidget(self.btn_export_pdf)
 
         self.btn_refresh_stats = QPushButton("🔄 Обновить")
         self.btn_refresh_stats.clicked.connect(self.update_sessions_table)
         self.btn_refresh_stats.setMinimumHeight(40)
-        self.btn_refresh_stats.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                font-weight: bold;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-            QPushButton:pressed {
-                background-color: #3d8b40;
-            }
-        """)
+        self.btn_refresh_stats.setStyleSheet(BUTTON_STYLE_PRIMARY)
         buttons_layout.addWidget(self.btn_refresh_stats)
 
         buttons_layout.addStretch()
@@ -738,10 +709,10 @@ class MainWindow(QMainWindow):
         feedback = []
 
         # Длина
-        if len(password) >= 8:
+        if len(password) >= MIN_PASSWORD_LENGTH:
             strength += 1
         else:
-            feedback.append("минимум 8 символов")
+            feedback.append(f"минимум {MIN_PASSWORD_LENGTH} символов")
 
         # Наличие цифр
         if any(c.isdigit() for c in password):
@@ -784,8 +755,11 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Ошибка", "Введите пароль")
             return
 
-        if len(password) < 6:
-            QMessageBox.warning(self, "Ошибка", "Пароль должен содержать минимум 6 символов")
+        if len(password) < MIN_PASSWORD_LENGTH:
+            QMessageBox.warning(
+                self, "Ошибка", 
+                f"Пароль должен содержать минимум {MIN_PASSWORD_LENGTH} символов"
+            )
             return
 
         if password != confirm:
@@ -806,7 +780,14 @@ class MainWindow(QMainWindow):
                 
                 # Сохранение в конфиг
                 self.config.admin_password_hash = hashed
-                self.config.save()
+                
+                # Попытка сохранить конфиг
+                try:
+                    self.config.save()
+                except Exception as save_error:
+                    # Если сохранение не удалось, откатываем изменение в памяти
+                    self.config.admin_password_hash = self.config.get('security', 'admin_password_hash', '')
+                    raise save_error
 
                 # Очистка полей
                 self.new_password_input.clear()
