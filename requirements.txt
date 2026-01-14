@@ -1,0 +1,42 @@
+# LibLocker - Система контроля и учета времени использования ПК
+# Основные зависимости
+
+# Веб-фреймворк и WebSocket
+flask==3.0.0
+flask-socketio==5.3.5
+python-socketio==5.10.0
+
+# База данных
+sqlalchemy==2.0.25
+alembic==1.13.1
+
+# GUI для серверного приложения и клиентского приложения
+PyQt6==6.6.1
+PyQt6-Qt6==6.6.1
+PyQt6-sip==13.6.0
+PyQt6-WebEngine==6.6.0
+qasync==0.28.0
+
+# Генерация PDF отчетов
+reportlab==4.0.9
+weasyprint==60.2
+
+# Безопасность
+bcrypt==4.1.2
+cryptography==41.0.7
+
+# Работа с системой Windows
+pywin32==306
+wmi==1.5.1
+
+# Сериализация данных
+marshmallow==3.20.1
+
+# Асинхронные операции
+aiohttp==3.9.1
+asyncio==3.4.3
+
+# Утилиты
+python-dotenv==1.0.0
+schedule==1.2.0
+

@@ -1,0 +1,204 @@
+"""
+Модуль работы с конфигурацией LibLocker
+"""
+import configparser
+import os
+from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class Config:
+    """Класс для работы с конфигурацией"""
+
+    def __init__(self, config_file: str = "config.ini"):
+        self.config_file = config_file
+        self.config = configparser.ConfigParser()
+        self.load()
+
+    def load(self):
+        """Загрузка конфигурации из файла"""
+        if not os.path.exists(self.config_file):
+            logger.warning(f"Config file {self.config_file} not found. Using defaults.")
+            self._create_default_config()
+        else:
+            self.config.read(self.config_file, encoding='utf-8')
+            logger.info(f"Config loaded from {self.config_file}")
+
+    def _create_default_config(self):
+        """Создание конфигурации по умолчанию"""
+        # Попытка скопировать из example файла
+        example_file = self.config_file.replace('.ini', '.example.ini')
+        if os.path.exists(example_file):
+            import shutil
+            shutil.copy(example_file, self.config_file)
+            self.config.read(self.config_file, encoding='utf-8')
+            logger.info(f"Config created from {example_file}")
+
+    def save(self):
+        """Сохранение конфигурации в файл"""
+        with open(self.config_file, 'w', encoding='utf-8') as f:
+            self.config.write(f)
+        logger.info(f"Config saved to {self.config_file}")
+
+    def get(self, section: str, key: str, fallback: Any = None) -> Any:
+        """Получить значение из конфигурации"""
+        try:
+            return self.config.get(section, key, fallback=fallback)
+        except (configparser.NoSectionError, configparser.NoOptionError):
+            return fallback
+
+    def get_int(self, section: str, key: str, fallback: int = 0) -> int:
+        """Получить целочисленное значение"""
+        try:
+            return self.config.getint(section, key, fallback=fallback)
+        except (configparser.NoSectionError, configparser.NoOptionError, ValueError):
+            return fallback
+
+    def get_float(self, section: str, key: str, fallback: float = 0.0) -> float:
+        """Получить дробное значение"""
+        try:
+            return self.config.getfloat(section, key, fallback=fallback)
+        except (configparser.NoSectionError, configparser.NoOptionError, ValueError):
+            return fallback
+
+    def get_bool(self, section: str, key: str, fallback: bool = False) -> bool:
+        """Получить булево значение"""
+        try:
+            return self.config.getboolean(section, key, fallback=fallback)
+        except (configparser.NoSectionError, configparser.NoOptionError, ValueError):
+            return fallback
+
+    def set(self, section: str, key: str, value: Any):
+        """Установить значение в конфигурации"""
+        if not self.config.has_section(section):
+            self.config.add_section(section)
+        self.config.set(section, key, str(value))
+
+
+class ServerConfig(Config):
+    """Конфигурация сервера"""
+
+    def __init__(self):
+        super().__init__("config.ini")
+
+    @property
+    def host(self) -> str:
+        return self.get('server', 'host', '0.0.0.0')
+
+    @property
+    def port(self) -> int:
+        return self.get_int('server', 'port', 8765)
+
+    @property
+    def web_port(self) -> int:
+        return self.get_int('server', 'web_port', 8080)
+
+    @property
+    def database_path(self) -> str:
+        return self.get('database', 'path', 'data/liblocker.db')
+
+    @property
+    def free_mode(self) -> bool:
+        return self.get_bool('tariff', 'free_mode', True)
+
+    @property
+    def hourly_rate(self) -> float:
+        return self.get_float('tariff', 'hourly_rate', 100.0)
+
+    @property
+    def rounding_minutes(self) -> int:
+        return self.get_int('tariff', 'rounding_minutes', 5)
+
+    @property
+    def admin_password_hash(self) -> str:
+        return self.get('security', 'admin_password_hash', '')
+
+    @admin_password_hash.setter
+    def admin_password_hash(self, value: str):
+        self.set('security', 'admin_password_hash', value)
+
+    @property
+    def log_level(self) -> str:
+        return self.get('logging', 'level', 'INFO')
+
+    @property
+    def log_file(self) -> str:
+        return self.get('logging', 'file', 'logs/server.log')
+
+
+class ClientConfig(Config):
+    """Конфигурация клиента"""
+
+    def __init__(self):
+        super().__init__("config.client.ini")
+
+    @property
+    def server_url(self) -> str:
+        return self.get('server', 'url', 'http://localhost:8765')
+
+    @property
+    def connection_timeout(self) -> int:
+        return self.get_int('server', 'connection_timeout', 10)
+
+    @property
+    def reconnect_interval(self) -> int:
+        return self.get_int('server', 'reconnect_interval', 5)
+
+    @property
+    def widget_position(self) -> tuple:
+        x = self.get_int('widget', 'position_x', 20)
+        y = self.get_int('widget', 'position_y', 20)
+        return (x, y)
+
+    @property
+    def widget_size(self) -> tuple:
+        w = self.get_int('widget', 'width', 200)
+        h = self.get_int('widget', 'height', 100)
+        return (w, h)
+
+    @property
+    def widget_opacity(self) -> int:
+        return self.get_int('widget', 'opacity', 240)
+
+    @property
+    def auto_hide_after(self) -> int:
+        return self.get_int('widget', 'auto_hide_after', 0)
+
+    @property
+    def warning_minutes(self) -> int:
+        return self.get_int('notifications', 'warning_minutes', 5)
+
+    @property
+    def sound_enabled(self) -> bool:
+        return self.get_bool('notifications', 'sound_enabled', True)
+
+    @property
+    def popup_enabled(self) -> bool:
+        return self.get_bool('notifications', 'popup_enabled', True)
+
+    @property
+    def admin_password_hash(self) -> str:
+        return self.get('security', 'admin_password_hash', '')
+
+    @property
+    def auto_unlock_timeout(self) -> int:
+        return self.get_int('security', 'auto_unlock_timeout', 10)
+
+    @property
+    def log_level(self) -> str:
+        return self.get('logging', 'level', 'INFO')
+
+    @property
+    def log_file(self) -> str:
+        return self.get('logging', 'file', 'logs/client.log')
+
+    @property
+    def autostart_enabled(self) -> bool:
+        return self.get_bool('autostart', 'enabled', False)
+
+    @property
+    def auto_connect(self) -> bool:
+        return self.get_bool('autostart', 'auto_connect', True)
+

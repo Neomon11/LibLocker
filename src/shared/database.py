@@ -1,0 +1,99 @@
+"""
+База данных для LibLocker Server
+SQLAlchemy модели
+"""
+from datetime import datetime
+from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Enum
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, relationship
+import enum
+
+Base = declarative_base()
+
+
+class ClientStatusEnum(enum.Enum):
+    """Статус клиента"""
+    OFFLINE = "offline"
+    ONLINE = "online"
+    IN_SESSION = "in_session"
+    BLOCKED = "blocked"
+
+
+class SessionStatusEnum(enum.Enum):
+    """Статус сессии"""
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+
+class ClientModel(Base):
+    """Модель клиента в БД"""
+    __tablename__ = 'clients'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    hwid = Column(String(64), unique=True, nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    ip_address = Column(String(45))
+    mac_address = Column(String(17))
+    status = Column(String(20), default='offline')
+    last_seen = Column(DateTime, default=datetime.now)
+    created_at = Column(DateTime, default=datetime.now)
+
+    # Связи
+    sessions = relationship("SessionModel", back_populates="client")
+
+    def __repr__(self):
+        return f"<Client(id={self.id}, name='{self.name}', hwid='{self.hwid}')>"
+
+
+class SessionModel(Base):
+    """Модель сессии в БД"""
+    __tablename__ = 'sessions'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    client_id = Column(Integer, ForeignKey('clients.id'), nullable=False)
+    start_time = Column(DateTime, default=datetime.now, nullable=False)
+    end_time = Column(DateTime)
+    duration_minutes = Column(Integer, default=0)  # Запланированная длительность
+    actual_duration = Column(Integer)  # Фактическая длительность в минутах
+    is_unlimited = Column(Boolean, default=False)
+    cost = Column(Float, default=0.0)
+    status = Column(String(20), default='active')
+
+    # Связи
+    client = relationship("ClientModel", back_populates="sessions")
+
+    def __repr__(self):
+        return f"<Session(id={self.id}, client_id={self.client_id}, status='{self.status}')>"
+
+
+class SettingsModel(Base):
+    """Модель настроек сервера"""
+    __tablename__ = 'settings'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    key = Column(String(100), unique=True, nullable=False)
+    value = Column(String(500))
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+    def __repr__(self):
+        return f"<Settings(key='{self.key}', value='{self.value}')>"
+
+
+class Database:
+    """Класс для работы с базой данных"""
+
+    def __init__(self, db_path: str = "data/liblocker.db"):
+        """Инициализация БД"""
+        self.engine = create_engine(f'sqlite:///{db_path}', echo=False)
+        Base.metadata.create_all(self.engine)
+        self.Session = sessionmaker(bind=self.engine)
+
+    def get_session(self):
+        """Получить сессию БД"""
+        return self.Session()
+
+    def close(self):
+        """Закрыть соединение"""
+        self.engine.dispose()
+
