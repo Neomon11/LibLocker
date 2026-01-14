@@ -21,8 +21,133 @@ from .server import LibLockerServer
 from ..shared.database import Database, ClientModel, SessionModel
 from ..shared.models import ClientStatus
 from ..shared.config import ServerConfig
+from ..shared.utils import hash_password
 
 logger = logging.getLogger(__name__)
+
+# Constants
+MIN_PASSWORD_LENGTH = 8
+RECOMMENDED_PASSWORD_LENGTH = 8
+
+# Button styles
+BUTTON_STYLE_PRIMARY = """
+    QPushButton {
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-weight: bold;
+        font-size: 14px;
+    }
+    QPushButton:hover {
+        background-color: #45a049;
+    }
+    QPushButton:pressed {
+        background-color: #3d8b40;
+    }
+"""
+
+BUTTON_STYLE_DANGER = """
+    QPushButton {
+        background-color: #f44336;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-weight: bold;
+        font-size: 14px;
+    }
+    QPushButton:hover {
+        background-color: #da190b;
+    }
+    QPushButton:pressed {
+        background-color: #c1160a;
+    }
+"""
+
+BUTTON_STYLE_WARNING = """
+    QPushButton {
+        background-color: #ff9800;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-weight: bold;
+        font-size: 14px;
+    }
+    QPushButton:hover {
+        background-color: #e68900;
+    }
+    QPushButton:pressed {
+        background-color: #cc7a00;
+    }
+"""
+
+BUTTON_STYLE_INFO = """
+    QPushButton {
+        background-color: #2196F3;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-weight: bold;
+        font-size: 14px;
+    }
+    QPushButton:hover {
+        background-color: #1976D2;
+    }
+    QPushButton:pressed {
+        background-color: #1565C0;
+    }
+"""
+
+BUTTON_STYLE_SECONDARY = """
+    QPushButton {
+        background-color: #757575;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-weight: bold;
+        font-size: 14px;
+    }
+    QPushButton:hover {
+        background-color: #616161;
+    }
+    QPushButton:pressed {
+        background-color: #424242;
+    }
+"""
+
+BUTTON_STYLE_PURPLE = """
+    QPushButton {
+        background-color: #9C27B0;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-weight: bold;
+        font-size: 14px;
+    }
+    QPushButton:hover {
+        background-color: #7B1FA2;
+    }
+    QPushButton:pressed {
+        background-color: #6A1B9A;
+    }
+"""
+
+TABLE_STYLE = """
+    QTableWidget {
+        gridline-color: #d0d0d0;
+        background-color: white;
+    }
+    QTableWidget::item:selected {
+        background-color: #0078d7;
+        color: white;
+    }
+    QHeaderView::section {
+        background-color: #f0f0f0;
+        padding: 5px;
+        border: 1px solid #d0d0d0;
+        font-weight: bold;
+    }
+"""
 
 
 class ServerThread(QThread):
@@ -47,18 +172,34 @@ class SessionDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Создание сессии")
         self.setModal(True)
+        self.setMinimumWidth(400)
         self.init_ui()
 
     def init_ui(self):
         layout = QVBoxLayout()
+        layout.setSpacing(15)
+
+        # Заголовок
+        header = QLabel("Выберите длительность сессии")
+        header.setStyleSheet("font-size: 14px; font-weight: bold; padding: 10px;")
+        layout.addWidget(header)
 
         # Быстрые кнопки
+        quick_group = QGroupBox("Быстрый выбор")
         quick_buttons = QHBoxLayout()
-        self.btn_30min = QPushButton("+30 минут")
-        self.btn_unlimited = QPushButton("Безлимит")
+        
+        self.btn_30min = QPushButton("⏱️ +30 минут")
+        self.btn_30min.setMinimumHeight(50)
+        self.btn_30min.setStyleSheet(BUTTON_STYLE_INFO)
         quick_buttons.addWidget(self.btn_30min)
+        
+        self.btn_unlimited = QPushButton("♾️ Безлимит")
+        self.btn_unlimited.setMinimumHeight(50)
+        self.btn_unlimited.setStyleSheet(BUTTON_STYLE_PURPLE)
         quick_buttons.addWidget(self.btn_unlimited)
-        layout.addLayout(quick_buttons)
+        
+        quick_group.setLayout(quick_buttons)
+        layout.addWidget(quick_group)
 
         # Произвольное время
         custom_group = QGroupBox("Произвольное время")
@@ -66,10 +207,12 @@ class SessionDialog(QDialog):
 
         self.hours_spin = QSpinBox()
         self.hours_spin.setRange(0, 24)
+        self.hours_spin.setMinimumHeight(30)
         custom_layout.addRow("Часы:", self.hours_spin)
 
         self.minutes_spin = QSpinBox()
         self.minutes_spin.setRange(0, 59)
+        self.minutes_spin.setMinimumHeight(30)
         custom_layout.addRow("Минуты:", self.minutes_spin)
 
         custom_group.setLayout(custom_layout)
@@ -77,10 +220,17 @@ class SessionDialog(QDialog):
 
         # Кнопки подтверждения
         buttons = QHBoxLayout()
-        self.btn_ok = QPushButton("Создать")
-        self.btn_cancel = QPushButton("Отмена")
+        
+        self.btn_ok = QPushButton("✅ Создать")
+        self.btn_ok.setMinimumHeight(40)
+        self.btn_ok.setStyleSheet(BUTTON_STYLE_PRIMARY)
         buttons.addWidget(self.btn_ok)
+        
+        self.btn_cancel = QPushButton("❌ Отмена")
+        self.btn_cancel.setMinimumHeight(40)
+        self.btn_cancel.setStyleSheet(BUTTON_STYLE_SECONDARY)
         buttons.addWidget(self.btn_cancel)
+        
         layout.addLayout(buttons)
 
         self.setLayout(layout)
@@ -123,6 +273,7 @@ class MainWindow(QMainWindow):
 
         # Инициализация
         self.db = Database()
+        self.config = ServerConfig()
         self.server = LibLockerServer()
         self.server_thread = None
 
@@ -132,6 +283,7 @@ class MainWindow(QMainWindow):
         self.update_timer.start(1000)  # Обновление каждую секунду
 
         self.init_ui()
+        self.load_settings()
         self.start_server()
 
     def init_ui(self):
@@ -165,6 +317,11 @@ class MainWindow(QMainWindow):
         widget = QWidget()
         layout = QVBoxLayout(widget)
 
+        # Заголовок
+        header_label = QLabel("Управление клиентами")
+        header_label.setStyleSheet("font-size: 16px; font-weight: bold; padding: 10px;")
+        layout.addWidget(header_label)
+
         # Таблица клиентов
         self.clients_table = QTableWidget()
         self.clients_table.setColumnCount(6)
@@ -172,21 +329,30 @@ class MainWindow(QMainWindow):
             "ID", "Имя", "IP", "Статус", "Время сессии", "Действия"
         ])
         self.clients_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.clients_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.clients_table.setAlternatingRowColors(True)
+        self.clients_table.setStyleSheet(TABLE_STYLE)
         layout.addWidget(self.clients_table)
 
         # Кнопки управления
         buttons_layout = QHBoxLayout()
 
-        self.btn_start_session = QPushButton("Начать сессию")
+        self.btn_start_session = QPushButton("🎮 Начать сессию")
         self.btn_start_session.clicked.connect(self.start_session)
+        self.btn_start_session.setMinimumHeight(40)
+        self.btn_start_session.setStyleSheet(BUTTON_STYLE_PRIMARY)
         buttons_layout.addWidget(self.btn_start_session)
 
-        self.btn_stop_session = QPushButton("Остановить сессию")
+        self.btn_stop_session = QPushButton("⏹️ Остановить сессию")
         self.btn_stop_session.clicked.connect(self.stop_session)
+        self.btn_stop_session.setMinimumHeight(40)
+        self.btn_stop_session.setStyleSheet(BUTTON_STYLE_DANGER)
         buttons_layout.addWidget(self.btn_stop_session)
 
-        self.btn_shutdown = QPushButton("Выключить ПК")
+        self.btn_shutdown = QPushButton("🔌 Выключить ПК")
         self.btn_shutdown.clicked.connect(self.shutdown_client)
+        self.btn_shutdown.setMinimumHeight(40)
+        self.btn_shutdown.setStyleSheet(BUTTON_STYLE_WARNING)
         buttons_layout.addWidget(self.btn_shutdown)
 
         buttons_layout.addStretch()
@@ -199,6 +365,11 @@ class MainWindow(QMainWindow):
         widget = QWidget()
         layout = QVBoxLayout(widget)
 
+        # Заголовок
+        header_label = QLabel("История сессий")
+        header_label.setStyleSheet("font-size: 16px; font-weight: bold; padding: 10px;")
+        layout.addWidget(header_label)
+
         # Таблица сессий
         self.sessions_table = QTableWidget()
         self.sessions_table.setColumnCount(6)
@@ -206,14 +377,25 @@ class MainWindow(QMainWindow):
             "ID", "Клиент", "Начало", "Окончание", "Длительность", "Стоимость"
         ])
         self.sessions_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.sessions_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.sessions_table.setAlternatingRowColors(True)
+        self.sessions_table.setStyleSheet(TABLE_STYLE)
         layout.addWidget(self.sessions_table)
 
         # Кнопки
         buttons_layout = QHBoxLayout()
 
-        self.btn_export_pdf = QPushButton("Экспорт в PDF")
+        self.btn_export_pdf = QPushButton("📄 Экспорт в PDF")
         self.btn_export_pdf.clicked.connect(self.export_to_pdf)
+        self.btn_export_pdf.setMinimumHeight(40)
+        self.btn_export_pdf.setStyleSheet(BUTTON_STYLE_INFO)
         buttons_layout.addWidget(self.btn_export_pdf)
+
+        self.btn_refresh_stats = QPushButton("🔄 Обновить")
+        self.btn_refresh_stats.clicked.connect(self.update_sessions_table)
+        self.btn_refresh_stats.setMinimumHeight(40)
+        self.btn_refresh_stats.setStyleSheet(BUTTON_STYLE_PRIMARY)
+        buttons_layout.addWidget(self.btn_refresh_stats)
 
         buttons_layout.addStretch()
         layout.addLayout(buttons_layout)
@@ -227,6 +409,53 @@ class MainWindow(QMainWindow):
         """Создать вкладку настроек"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
+
+        # Группа безопасности
+        security_group = QGroupBox("Безопасность")
+        security_layout = QVBoxLayout()
+
+        # Статус пароля
+        password_status_layout = QHBoxLayout()
+        password_status_label = QLabel("Пароль администратора:")
+        self.password_status = QLabel()
+        self.update_password_status()
+        password_status_layout.addWidget(password_status_label)
+        password_status_layout.addWidget(self.password_status)
+        password_status_layout.addStretch()
+        security_layout.addLayout(password_status_layout)
+
+        # Поля для ввода пароля
+        password_form = QFormLayout()
+        
+        self.new_password_input = QLineEdit()
+        self.new_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.new_password_input.setPlaceholderText("Введите новый пароль")
+        self.new_password_input.textChanged.connect(self.check_password_strength)
+        password_form.addRow("Новый пароль:", self.new_password_input)
+
+        self.confirm_password_input = QLineEdit()
+        self.confirm_password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.confirm_password_input.setPlaceholderText("Подтвердите пароль")
+        password_form.addRow("Подтверждение:", self.confirm_password_input)
+
+        # Индикатор надежности пароля
+        self.password_strength_label = QLabel()
+        self.password_strength_label.setStyleSheet("color: gray; font-style: italic;")
+        password_form.addRow("Надежность:", self.password_strength_label)
+
+        security_layout.addLayout(password_form)
+
+        # Кнопка установки пароля
+        btn_set_password_layout = QHBoxLayout()
+        self.btn_set_password = QPushButton("Установить пароль")
+        self.btn_set_password.clicked.connect(self.set_admin_password)
+        self.btn_set_password.setMinimumHeight(35)
+        btn_set_password_layout.addWidget(self.btn_set_password)
+        btn_set_password_layout.addStretch()
+        security_layout.addLayout(btn_set_password_layout)
+
+        security_group.setLayout(security_layout)
+        layout.addWidget(security_group)
 
         # Группа тарификации
         tariff_group = QGroupBox("Тарификация")
@@ -267,9 +496,10 @@ class MainWindow(QMainWindow):
         network_group.setLayout(network_layout)
         layout.addWidget(network_group)
 
-        # Кнопка сохранения
+        # Кнопка сохранения общих настроек
         self.btn_save_settings = QPushButton("Сохранить настройки")
         self.btn_save_settings.clicked.connect(self.save_settings)
+        self.btn_save_settings.setMinimumHeight(35)
         layout.addWidget(self.btn_save_settings)
 
         layout.addStretch()
@@ -428,8 +658,150 @@ class MainWindow(QMainWindow):
 
     def save_settings(self):
         """Сохранить настройки"""
-        # TODO: Реализовать сохранение настроек в БД
-        QMessageBox.information(self, "Успех", "Настройки сохранены")
+        try:
+            # Сохранение настроек тарификации
+            self.config.set('tariff', 'free_mode', str(self.free_mode_check.isChecked()).lower())
+            self.config.set('tariff', 'hourly_rate', str(self.hourly_rate_spin.value()))
+            self.config.set('tariff', 'rounding_minutes', str(self.rounding_spin.value()))
+
+            # Сохранение сетевых настроек (требует перезапуска)
+            self.config.set('server', 'port', str(self.port_spin.value()))
+            self.config.set('server', 'web_port', str(self.web_port_spin.value()))
+
+            self.config.save()
+            QMessageBox.information(self, "Успех", "Настройки сохранены\n\nСетевые настройки вступят в силу после перезапуска сервера.")
+            logger.info("Settings saved successfully")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось сохранить настройки:\n{str(e)}")
+            logger.error(f"Error saving settings: {e}")
+
+    def load_settings(self):
+        """Загрузить настройки из конфига"""
+        try:
+            self.free_mode_check.setChecked(self.config.free_mode)
+            self.hourly_rate_spin.setValue(self.config.hourly_rate)
+            self.rounding_spin.setValue(self.config.rounding_minutes)
+            self.port_spin.setValue(self.config.port)
+            self.web_port_spin.setValue(self.config.web_port)
+            logger.info("Settings loaded successfully")
+        except Exception as e:
+            logger.error(f"Error loading settings: {e}")
+
+    def update_password_status(self):
+        """Обновить статус пароля"""
+        if self.config.admin_password_hash:
+            self.password_status.setText("✅ Установлен")
+            self.password_status.setStyleSheet("color: green; font-weight: bold;")
+        else:
+            self.password_status.setText("❌ Не установлен")
+            self.password_status.setStyleSheet("color: red; font-weight: bold;")
+
+    def check_password_strength(self):
+        """Проверить надежность пароля"""
+        password = self.new_password_input.text()
+        
+        if not password:
+            self.password_strength_label.setText("")
+            self.password_strength_label.setStyleSheet("color: gray; font-style: italic;")
+            return
+
+        strength = 0
+        feedback = []
+
+        # Длина
+        if len(password) >= MIN_PASSWORD_LENGTH:
+            strength += 1
+        else:
+            feedback.append(f"минимум {MIN_PASSWORD_LENGTH} символов")
+
+        # Наличие цифр
+        if any(c.isdigit() for c in password):
+            strength += 1
+        else:
+            feedback.append("добавьте цифры")
+
+        # Наличие букв
+        if any(c.isalpha() for c in password):
+            strength += 1
+        else:
+            feedback.append("добавьте буквы")
+
+        # Наличие спецсимволов
+        if any(not c.isalnum() for c in password):
+            strength += 1
+
+        # Наличие заглавных и строчных букв
+        if any(c.isupper() for c in password) and any(c.islower() for c in password):
+            strength += 1
+
+        # Отображение надежности
+        if strength <= 2:
+            self.password_strength_label.setText("⚠️ Слабый" + (" (" + ", ".join(feedback) + ")" if feedback else ""))
+            self.password_strength_label.setStyleSheet("color: red; font-weight: bold;")
+        elif strength == 3:
+            self.password_strength_label.setText("⚡ Средний")
+            self.password_strength_label.setStyleSheet("color: orange; font-weight: bold;")
+        else:
+            self.password_strength_label.setText("✅ Надежный")
+            self.password_strength_label.setStyleSheet("color: green; font-weight: bold;")
+
+    def set_admin_password(self):
+        """Установить пароль администратора"""
+        password = self.new_password_input.text()
+        confirm = self.confirm_password_input.text()
+
+        # Валидация
+        if not password:
+            QMessageBox.warning(self, "Ошибка", "Введите пароль")
+            return
+
+        if len(password) < MIN_PASSWORD_LENGTH:
+            QMessageBox.warning(
+                self, "Ошибка", 
+                f"Пароль должен содержать минимум {MIN_PASSWORD_LENGTH} символов"
+            )
+            return
+
+        if password != confirm:
+            QMessageBox.warning(self, "Ошибка", "Пароли не совпадают")
+            return
+
+        # Подтверждение
+        reply = QMessageBox.question(
+            self, "Подтверждение",
+            "Вы уверены, что хотите установить новый пароль администратора?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                # Хеширование пароля
+                hashed = hash_password(password)
+                
+                # Сохранение в конфиг
+                self.config.admin_password_hash = hashed
+                
+                # Попытка сохранить конфиг
+                try:
+                    self.config.save()
+                except Exception as save_error:
+                    # Если сохранение не удалось, откатываем изменение в памяти
+                    self.config.admin_password_hash = self.config.get('security', 'admin_password_hash', '')
+                    raise save_error
+
+                # Очистка полей
+                self.new_password_input.clear()
+                self.confirm_password_input.clear()
+                self.password_strength_label.setText("")
+
+                # Обновление статуса
+                self.update_password_status()
+
+                QMessageBox.information(self, "Успех", "Пароль администратора успешно установлен!")
+                logger.info("Admin password set successfully")
+            except Exception as e:
+                QMessageBox.critical(self, "Ошибка", f"Не удалось установить пароль:\n{str(e)}")
+                logger.error(f"Error setting admin password: {e}")
 
     def export_to_pdf(self):
         """Экспорт отчета в PDF"""
