@@ -632,10 +632,10 @@ class MainWindow(QMainWindow):
                 # Получаем все сессии клиента
                 sessions = db_session.query(SessionModel).filter_by(client_id=client.id).all()
                 
-                # Подсчитываем статистику
+                # Подсчитываем статистику с обработкой None значений
                 total_sessions = len(sessions)
-                total_duration = sum(s.actual_duration for s in sessions if s.actual_duration)
-                total_cost = sum(s.cost for s in sessions if s.cost)
+                total_duration = sum(s.actual_duration or 0 for s in sessions)
+                total_cost = sum(s.cost or 0 for s in sessions)
                 avg_duration = total_duration / total_sessions if total_sessions > 0 else 0
                 
                 # Заполняем таблицу
