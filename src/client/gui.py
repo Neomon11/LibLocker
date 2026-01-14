@@ -23,14 +23,16 @@ try:
     WINDOWS_AVAILABLE = True
 except ImportError:
     WINDOWS_AVAILABLE = False
-    logger = logging.getLogger(__name__)
-    logger.warning("Windows-specific modules not available (winsound, win32api, win32con)")
 
 from .client import LibLockerClient
 from ..shared.utils import verify_password
 from ..shared.config import ClientConfig
 
 logger = logging.getLogger(__name__)
+
+# Log warning if Windows modules are not available
+if not WINDOWS_AVAILABLE:
+    logger.warning("Windows-specific modules not available (winsound, win32api, win32con)")
 
 # Пароль администратора для разблокировки (TODO: загружать из конфига)
 ADMIN_PASSWORD_HASH = ""  # Пустой для отладки
