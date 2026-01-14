@@ -4,7 +4,122 @@
 import hashlib
 import uuid
 import platform
+import os
+import sys
 from typing import Optional
+
+
+class SingleInstanceChecker:
+    """
+    Класс для проверки того, что запущен только один экземпляр приложения
+    Использует lock-файлы для предотвращения запуска нескольких копий
+    """
+    
+    def __init__(self, app_name: str):
+        """
+        Инициализация checker
+        
+        Args:
+            app_name: Имя приложения (например, 'liblocker_client' или 'liblocker_server')
+        """
+        self.app_name = app_name
+        # Используем безопасную временную директорию
+        import tempfile
+        temp_dir = tempfile.gettempdir()
+        self.lock_dir = os.path.join(temp_dir, 'liblocker')
+        
+        # Создаем директорию если не существует
+        os.makedirs(self.lock_dir, exist_ok=True)
+        
+        self.lock_file = os.path.join(self.lock_dir, f'{app_name}.lock')
+        self.lock_fd = None
+        self._locked = False
+    
+    def is_already_running(self) -> bool:
+        """
+        Проверка, запущен ли уже экземпляр приложения
+        
+        Returns:
+            True если приложение уже запущено, False если нет
+        """
+        if self._locked:
+            # Уже заблокировано этим экземпляром
+            return False
+            
+        if platform.system() == 'Windows':
+            return self._check_windows()
+        else:
+            return self._check_unix()
+    
+    def _check_windows(self) -> bool:
+        """Проверка для Windows используя эксклюзивный доступ к файлу"""
+        try:
+            # Пытаемся открыть файл в эксклюзивном режиме
+            import msvcrt
+            self.lock_fd = open(self.lock_file, 'w')
+            msvcrt.locking(self.lock_fd.fileno(), msvcrt.LK_NBLCK, 1)
+            # Записываем PID
+            self.lock_fd.write(str(os.getpid()))
+            self.lock_fd.flush()
+            self._locked = True
+            return False
+        except (IOError, OSError):
+            # Файл уже заблокирован другим процессом
+            if self.lock_fd:
+                try:
+                    self.lock_fd.close()
+                except (IOError, OSError):
+                    pass
+                self.lock_fd = None
+            return True
+    
+    def _check_unix(self) -> bool:
+        """Проверка для Unix-подобных систем используя fcntl"""
+        try:
+            import fcntl
+            # Открываем файл для чтения/записи, создаем если не существует
+            self.lock_fd = open(self.lock_file, 'w')
+            # Пытаемся получить эксклюзивную блокировку без ожидания
+            fcntl.flock(self.lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            # Записываем PID
+            self.lock_fd.truncate(0)
+            self.lock_fd.write(str(os.getpid()))
+            self.lock_fd.flush()
+            self._locked = True
+            return False
+        except (IOError, OSError, BlockingIOError) as e:
+            # Файл уже заблокирован другим процессом
+            if self.lock_fd:
+                try:
+                    self.lock_fd.close()
+                except (IOError, OSError):
+                    pass
+                self.lock_fd = None
+            return True
+    
+    def release(self):
+        """Освобождение lock-файла"""
+        if self.lock_fd and self._locked:
+            try:
+                if platform.system() != 'Windows':
+                    import fcntl
+                    fcntl.flock(self.lock_fd.fileno(), fcntl.LOCK_UN)
+                self.lock_fd.close()
+                self._locked = False
+            except (IOError, OSError):
+                pass
+            finally:
+                self.lock_fd = None
+                # Удаляем lock-файл
+                try:
+                    if os.path.exists(self.lock_file):
+                        os.remove(self.lock_file)
+                except (OSError, FileNotFoundError):
+                    pass
+    
+    def __del__(self):
+        """Автоматическое освобождение при удалении объекта"""
+        self.release()
 
 
 def get_hwid() -> str:

@@ -512,18 +512,36 @@ class TimerWidget(QWidget):
         """Переключение видимости виджета"""
         if self.is_hidden:
             # Показываем полный виджет
-            self.resize(200, 100)
+            width, height = self.config.widget_size
+            self.resize(width, height)
             self.timer_label.show()
             self.cost_label.show()
             self.btn_hide.setText("×")
             self.is_hidden = False
+            # Восстанавливаем обычную прозрачность
+            opacity = self.config.widget_opacity
+            self.setStyleSheet(f"""
+                QWidget {{
+                    background-color: rgba(40, 40, 40, {opacity});
+                    color: white;
+                    border-radius: 10px;
+                }}
+            """)
         else:
-            # Минимизируем виджет
-            self.resize(50, 30)
+            # Минимизируем виджет - делаем его почти невидимым
+            self.resize(30, 20)
             self.timer_label.hide()
             self.cost_label.hide()
             self.btn_hide.setText("⏱")
             self.is_hidden = True
+            # Уменьшаем прозрачность (более прозрачный)
+            self.setStyleSheet("""
+                QWidget {
+                    background-color: rgba(40, 40, 40, 0.3);
+                    color: rgba(255, 255, 255, 0.5);
+                    border-radius: 5px;
+                }
+            """)
 
     def stop_timer(self):
         """Остановить таймер"""
