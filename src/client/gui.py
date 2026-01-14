@@ -6,7 +6,6 @@ import sys
 import asyncio
 import os
 import logging
-import winsound
 from datetime import datetime, timedelta
 from pathlib import Path
 from PyQt6.QtWidgets import (
@@ -15,8 +14,17 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread, QPoint
 from PyQt6.QtGui import QFont, QColor, QPalette, QScreen
-import win32api
-import win32con
+
+# Windows-specific imports (optional for cross-platform compatibility)
+try:
+    import winsound
+    import win32api
+    import win32con
+    WINDOWS_AVAILABLE = True
+except ImportError:
+    WINDOWS_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("Windows-specific modules not available (winsound, win32api, win32con)")
 
 from .client import LibLockerClient
 from ..shared.utils import verify_password
@@ -472,7 +480,7 @@ class TimerWidget(QWidget):
         logger.info(f"Warning: {self.warning_minutes} minutes remaining")
 
         # Звуковое уведомление
-        if self.config.sound_enabled:
+        if self.config.sound_enabled and WINDOWS_AVAILABLE:
             try:
                 # Проигрываем системный звук предупреждения
                 winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
