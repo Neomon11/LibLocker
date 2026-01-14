@@ -135,17 +135,24 @@ class LibLockerClient:
 
     async def _handle_session_start(self, data: dict):
         """Обработка команды начала сессии"""
-        logger.info(f"Session start command received: {data}")
+        logger.info("=" * 60)
+        logger.info(f"[Client] SESSION_START received")
+        logger.info(f"[Client] Data: {data}")
+        logger.info("=" * 60)
         self.status = ClientStatus.IN_SESSION
 
         if self.on_session_start:
             try:
+                logger.info(f"[Client] Calling on_session_start callback")
                 if asyncio.iscoroutinefunction(self.on_session_start):
                     await self.on_session_start(data)
                 else:
                     self.on_session_start(data)
+                logger.info(f"[Client] on_session_start callback completed")
             except Exception as e:
                 logger.error(f"Error calling on_session_start: {e}", exc_info=True)
+        else:
+            logger.warning(f"[Client] on_session_start callback is not set!")
 
     async def _handle_session_stop(self, data: dict):
         """Обработка команды остановки сессии"""
