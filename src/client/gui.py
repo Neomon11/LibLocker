@@ -51,8 +51,14 @@ class ClientThread(QThread):
 
         # Подключение callbacks - используем потокобезопасный способ
         def emit_session_started(data):
-            logger.info(f"[ClientThread] Emitting session_started signal with data: {data}")
-            self.session_started.emit(data)
+            logger.info(f"[ClientThread] Callback called - emitting session_started signal")
+            logger.info(f"[ClientThread] Data: {data}")
+            logger.info(f"[ClientThread] Thread ID: {QThread.currentThreadId()}")
+            try:
+                self.session_started.emit(data)
+                logger.info(f"[ClientThread] Signal emitted successfully")
+            except Exception as e:
+                logger.error(f"[ClientThread] Error emitting signal: {e}", exc_info=True)
 
         def emit_session_stopped(data):
             logger.info(f"[ClientThread] Emitting session_stopped signal with data: {data}")
@@ -539,10 +545,19 @@ class MainClientWindow(QMainWindow):
 
         # WebSocket клиент
         self.client_thread = ClientThread(server_url)
-        self.client_thread.session_started.connect(self.on_session_started)
-        self.client_thread.session_stopped.connect(self.on_session_stopped)
-        self.client_thread.shutdown_requested.connect(self.on_shutdown_requested)
-        self.client_thread.connected_to_server.connect(self.on_connected_to_server)
+        # Используем Qt.ConnectionType.QueuedConnection для потокобезопасной передачи сигналов
+        self.client_thread.session_started.connect(
+            self.on_session_started, Qt.ConnectionType.QueuedConnection
+        )
+        self.client_thread.session_stopped.connect(
+            self.on_session_stopped, Qt.ConnectionType.QueuedConnection
+        )
+        self.client_thread.shutdown_requested.connect(
+            self.on_shutdown_requested, Qt.ConnectionType.QueuedConnection
+        )
+        self.client_thread.connected_to_server.connect(
+            self.on_connected_to_server, Qt.ConnectionType.QueuedConnection
+        )
         self.client_thread.start()
 
         self.init_ui()
@@ -570,7 +585,11 @@ class MainClientWindow(QMainWindow):
 
     def on_session_started(self, data: dict):
         """Обработка начала сессии"""
-        logger.info(f"[MainWindow] Session started handler called with data: {data}")
+        logger.info("=" * 60)
+        logger.info(f"[MainWindow] *** on_session_started CALLED ***")
+        logger.info(f"[MainWindow] Thread ID: {QThread.currentThreadId()}")
+        logger.info(f"[MainWindow] Session data received: {data}")
+        logger.info("=" * 60)
 
         try:
             self.current_session_data = data
@@ -578,10 +597,15 @@ class MainClientWindow(QMainWindow):
             # Показываем виджет таймера с конфигурацией
             logger.info("[MainWindow] Creating timer widget...")
             self.timer_widget = TimerWidget(data, self.config)
+            logger.info(f"[MainWindow] Timer widget created: {self.timer_widget}")
+            
             self.timer_widget.session_finished.connect(self.on_timer_finished)
+            logger.info("[MainWindow] Signal connected to on_timer_finished")
 
             logger.info("[MainWindow] Showing timer widget...")
             self.timer_widget.show()
+            self.timer_widget.raise_()  # Поднимаем окно наверх
+            self.timer_widget.activateWindow()  # Активируем окно
             logger.info("[MainWindow] Timer widget shown successfully")
 
             # Скрываем главное окно
