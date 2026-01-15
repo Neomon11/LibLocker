@@ -862,37 +862,44 @@ class MainClientWindow(QMainWindow):
                 self.config.save()
                 logger.info("Admin password hash updated and saved")
                 
-                # Show success notification (non-intrusive, informational)
+                # Show success notification (important security update - always show)
                 # Use QTimer.singleShot to avoid blocking
                 def show_password_update_notification():
-                    # Only show if main window is visible (don't interrupt active session)
-                    if self.isVisible():
-                        QMessageBox.information(
-                            self,
-                            "LibLocker - Обновление пароля",
-                            "Пароль администратора был обновлен на сервере.\n\n"
-                            "Новый пароль сохранен и будет использоваться для разблокировки."
-                        )
+                    # Always show password update notification, even during active session
+                    # This is a critical security event that users should be aware of
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Icon.Information)
+                    msg.setWindowTitle("LibLocker - Обновление пароля")
+                    msg.setText("Пароль администратора был обновлен на сервере.\n\n"
+                                "Новый пароль сохранен и будет использоваться для разблокировки.")
+                    msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+                    # Make it stay on top to ensure visibility
+                    msg.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Dialog)
+                    msg.exec()
                 
                 QTimer.singleShot(100, show_password_update_notification)
             else:
                 logger.warning("Received empty password hash from server")
-                # Show warning for empty password
-                QMessageBox.warning(
-                    self,
-                    "LibLocker - Предупреждение",
-                    "Получен пустой пароль от сервера. Пароль не был обновлен."
-                )
+                # Show warning for empty password (critical issue)
+                msg = QMessageBox()
+                msg.setIcon(QMessageBox.Icon.Warning)
+                msg.setWindowTitle("LibLocker - Предупреждение")
+                msg.setText("Получен пустой пароль от сервера. Пароль не был обновлен.")
+                msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+                msg.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Dialog)
+                msg.exec()
                 
         except Exception as e:
             logger.error(f"Error updating admin password: {e}", exc_info=True)
-            # Show error message to user
-            QMessageBox.critical(
-                self,
-                "LibLocker - Ошибка",
-                f"Не удалось обновить пароль администратора:\n{str(e)}\n\n"
-                "Обратитесь к администратору."
-            )
+            # Show error message to user (critical issue)
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Icon.Critical)
+            msg.setWindowTitle("LibLocker - Ошибка")
+            msg.setText(f"Не удалось обновить пароль администратора:\n{str(e)}\n\n"
+                       "Обратитесь к администратору.")
+            msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+            msg.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Dialog)
+            msg.exec()
 
     def on_shutdown_requested(self):
         """Обработка команды выключения"""

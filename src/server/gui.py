@@ -1403,7 +1403,23 @@ class MainWindow(QMainWindow):
                 # Обновление статуса
                 self.update_password_status()
 
-                QMessageBox.information(self, "Успех", "Пароль администратора успешно установлен и разослан всем клиентам!")
+                # More accurate success message
+                if self.server and self.server_thread and self.server_thread.loop:
+                    connected_count = len(self.server.connected_clients)
+                    QMessageBox.information(
+                        self, 
+                        "Успех", 
+                        f"Пароль администратора успешно установлен!\n\n"
+                        f"Обновление отправлено {connected_count} подключенным клиентам.\n"
+                        f"Офлайн-клиенты получат обновление при подключении."
+                    )
+                else:
+                    QMessageBox.information(
+                        self, 
+                        "Успех", 
+                        "Пароль администратора успешно установлен!\n\n"
+                        "Обновление будет отправлено клиентам при их подключении."
+                    )
                 logger.info("Admin password set successfully")
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось установить пароль:\n{str(e)}")
