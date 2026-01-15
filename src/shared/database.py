@@ -58,6 +58,8 @@ class SessionModel(Base):
     actual_duration = Column(Integer)  # Фактическая длительность в минутах
     is_unlimited = Column(Boolean, default=False)
     cost = Column(Float, default=0.0)
+    cost_per_hour = Column(Float, default=0.0)  # Стоимость руб./час
+    free_mode = Column(Boolean, default=True)  # Бесплатный режим
     status = Column(String(20), default='active')
 
     # Связи

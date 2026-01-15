@@ -238,6 +238,8 @@ class LibLockerServer:
                 duration_minutes=duration_minutes,
                 is_unlimited=is_unlimited,
                 cost=0.0,
+                cost_per_hour=cost_per_hour,
+                free_mode=free_mode,
                 status='active'
             )
             db_session.add(session)
@@ -304,6 +306,17 @@ class LibLockerServer:
                 # Расчет фактической длительности
                 duration = (active_session.end_time - active_session.start_time).total_seconds() / 60
                 active_session.actual_duration = int(duration)
+                
+                # Расчет стоимости сессии
+                if not active_session.free_mode and active_session.cost_per_hour > 0:
+                    # Переводим длительность в часы и умножаем на стоимость
+                    duration_hours = duration / 60.0
+                    active_session.cost = duration_hours * active_session.cost_per_hour
+                    logger.info(f"Session cost calculated: {active_session.cost:.2f} руб. ({duration:.1f} min at {active_session.cost_per_hour} руб./hour)")
+                else:
+                    active_session.cost = 0.0
+                    logger.info(f"Session is free (free_mode={active_session.free_mode})")
+                
                 db_session.commit()
                 logger.info(f"Session {active_session.id} stopped")
 
