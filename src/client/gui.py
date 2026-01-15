@@ -8,6 +8,7 @@ import os
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Optional
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QLineEdit, QMessageBox, QDialog
@@ -567,8 +568,8 @@ class TimerWidget(QWidget):
 
     def show_warning_popup(self):
         """Показать всплывающее предупреждение"""
-        # Use None as parent to ensure dialog is centered on screen, not clipped by small widget
-        msg = QMessageBox(None)
+        # Use self as parent to prevent application termination when dialog closes
+        msg = QMessageBox(self)
         msg.setIcon(QMessageBox.Icon.Warning)
         msg.setWindowTitle("LibLocker - Предупреждение")
         
@@ -664,7 +665,8 @@ class TimerWidget(QWidget):
         # Use QTimer.singleShot to avoid blocking the signal handler
         def show_time_change_notification():
             from PyQt6.QtWidgets import QMessageBox
-            msg = QMessageBox(None)
+            # Use self as parent to prevent application termination when dialog closes
+            msg = QMessageBox(self)
             msg.setIcon(QMessageBox.Icon.Information)
             msg.setWindowTitle("LibLocker - Изменение времени")
             minute_word = get_russian_plural(new_duration_minutes, "минута", "минуты", "минут")
@@ -763,6 +765,14 @@ class MainClientWindow(QMainWindow):
             self.timer_widget.session_finished.connect(self.on_timer_finished)
             logger.info("[MainWindow] Signal connected to on_timer_finished")
 
+            # Устанавливаем callback для получения remaining_seconds
+            if self.client_thread.client:
+                try:
+                    self.client_thread.client.get_remaining_seconds = self.get_remaining_seconds
+                    logger.info("[MainWindow] Callback for get_remaining_seconds set")
+                except Exception as e:
+                    logger.error(f"[MainWindow] Failed to set get_remaining_seconds callback: {e}")
+
             logger.info("[MainWindow] Showing timer widget...")
             self.timer_widget.show()
             self.timer_widget.raise_()  # Поднимаем окно наверх
@@ -774,6 +784,12 @@ class MainClientWindow(QMainWindow):
             logger.info("[MainWindow] Main window hidden")
         except Exception as e:
             logger.error(f"[MainWindow] Error in on_session_started: {e}", exc_info=True)
+
+    def get_remaining_seconds(self) -> Optional[int]:
+        """Получить оставшееся время сессии в секундах"""
+        if self.timer_widget:
+            return self.timer_widget.remaining_seconds
+        return None
 
     def on_timer_finished(self):
         """Обработка окончания времени сессии - показываем блокировку"""
