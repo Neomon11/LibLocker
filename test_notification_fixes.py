@@ -17,8 +17,10 @@ def test_warning_not_immediate():
     print("Testing warning trigger timing...")
     print("=" * 70)
     
+    DEFAULT_WARNING_MINUTES = 5
+    
     class MockConfig:
-        warning_minutes = 5
+        warning_minutes = DEFAULT_WARNING_MINUTES
     
     def calculate_warning_time(duration_minutes: int, is_unlimited: bool, config) -> int:
         """Calculate appropriate warning time"""
@@ -77,16 +79,18 @@ def test_warning_flag_reset():
     print("\nTesting warning flag reset after time extension...")
     print("=" * 70)
     
+    DEFAULT_WARNING_MINUTES = 5
+    
     class MockSession:
         def __init__(self):
             self.warning_shown = False
-            self.warning_minutes = 5
+            self.warning_minutes = DEFAULT_WARNING_MINUTES
             self.remaining_seconds = 0
         
         def should_reset_warning(self, new_duration_minutes):
             """Check if warning flag should be reset"""
             # This simulates the logic in update_session_time
-            new_warning_minutes = max(1, new_duration_minutes // 2) if new_duration_minutes < 5 else 5
+            new_warning_minutes = max(1, new_duration_minutes // 2) if new_duration_minutes < DEFAULT_WARNING_MINUTES else DEFAULT_WARNING_MINUTES
             new_remaining = new_duration_minutes * 60  # Simplified - assume we just started
             
             # Reset if there's now enough time before warning
