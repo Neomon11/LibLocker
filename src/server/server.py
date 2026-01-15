@@ -309,6 +309,14 @@ class LibLockerServer:
                 
                 # Расчет стоимости сессии
                 if not active_session.free_mode and active_session.cost_per_hour > 0:
+                    # Валидация значений
+                    if duration < 0:
+                        logger.warning(f"Negative duration detected: {duration} minutes, setting to 0")
+                        duration = 0
+                    if active_session.cost_per_hour < 0:
+                        logger.warning(f"Negative cost_per_hour detected: {active_session.cost_per_hour}, setting to 0")
+                        active_session.cost_per_hour = 0
+                    
                     # Переводим длительность в часы и умножаем на стоимость
                     duration_hours = duration / 60.0
                     active_session.cost = duration_hours * active_session.cost_per_hour

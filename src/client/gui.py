@@ -878,6 +878,12 @@ class MainClientWindow(QMainWindow):
         
         # Закрываем окно блокировки
         if self.lock_screen:
+            # Отключаем сигнал перед закрытием
+            try:
+                self.lock_screen.unlocked.disconnect(self.on_lock_screen_unlocked)
+            except Exception as e:
+                logger.warning(f"Error disconnecting unlock signal: {e}")
+            
             self.lock_screen.force_close()
             self.lock_screen = None
         
