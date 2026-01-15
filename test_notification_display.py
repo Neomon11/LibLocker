@@ -23,9 +23,16 @@ def test_notification_not_parented_to_widget():
     
     # Check that show_warning_popup creates QMessageBox without parent
     if 'def show_warning_popup(self):' in content:
-        # Find the method
+        # Find the method - look for the next method or end of class
         start_idx = content.index('def show_warning_popup(self):')
-        end_idx = content.index('def ', start_idx + 1)
+        # Try to find next method, or use end of file if it's the last method
+        next_method_idx = content.find('\n    def ', start_idx + 1)
+        if next_method_idx == -1:
+            # This is the last method, find the end of the class or file
+            next_class_idx = content.find('\nclass ', start_idx + 1)
+            end_idx = next_class_idx if next_class_idx != -1 else len(content)
+        else:
+            end_idx = next_method_idx
         method_content = content[start_idx:end_idx]
         
         # Check that it creates QMessageBox() without self as parent
@@ -47,11 +54,16 @@ def test_notification_not_parented_to_widget():
     
     # Check that update_session_time notification is also independent
     if 'def update_session_time(self' in content:
-        # Find the method
+        # Find the method - look for the next method or end of class
         start_idx = content.index('def update_session_time(self')
-        # Find next method
+        # Try to find next method, or use end of file if it's the last method
         next_method_idx = content.find('\n    def ', start_idx + 1)
-        method_content = content[start_idx:next_method_idx if next_method_idx > 0 else len(content)]
+        if next_method_idx == -1:
+            # This is the last method, find the end of the class or file
+            next_class_idx = content.find('\nclass ', start_idx + 1)
+            method_content = content[start_idx:next_class_idx if next_class_idx != -1 else len(content)]
+        else:
+            method_content = content[start_idx:next_method_idx]
         
         # Check for independent QMessageBox in nested function
         if 'msg = QMessageBox()' in method_content:

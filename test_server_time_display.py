@@ -79,8 +79,6 @@ def test_session_scenarios():
     print("Testing realistic session scenarios")
     print("="*60)
     
-    from datetime import datetime, timedelta
-    
     # Simulate a session that was just updated
     print("\n📝 Scenario 1: Session just started (10 minutes)")
     start_time = datetime.now()
