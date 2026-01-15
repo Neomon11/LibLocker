@@ -19,7 +19,7 @@ class MockTimerWidget:
 class MockClient:
     """Mock LibLockerClient for testing"""
     def __init__(self):
-        self.get_remaining_seconds: Optional[Callable] = None
+        self.get_remaining_seconds: Optional[Callable[[], Optional[int]]] = None
 
 
 class MockMainWindow:

@@ -767,8 +767,11 @@ class MainClientWindow(QMainWindow):
 
             # Устанавливаем callback для получения remaining_seconds
             if self.client_thread.client:
-                self.client_thread.client.get_remaining_seconds = self.get_remaining_seconds
-                logger.info("[MainWindow] Callback for remaining_seconds set")
+                try:
+                    self.client_thread.client.get_remaining_seconds = self.get_remaining_seconds
+                    logger.info("[MainWindow] Callback for remaining_seconds set")
+                except Exception as e:
+                    logger.error(f"[MainWindow] Failed to set remaining_seconds callback: {e}")
 
             logger.info("[MainWindow] Showing timer widget...")
             self.timer_widget.show()
