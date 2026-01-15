@@ -74,6 +74,7 @@ class ClientThread(QThread):
     session_started = pyqtSignal(dict)
     session_stopped = pyqtSignal(dict)
     session_time_updated = pyqtSignal(dict)
+    password_updated = pyqtSignal(dict)
     shutdown_requested = pyqtSignal()
     connected_to_server = pyqtSignal()
 
@@ -109,6 +110,10 @@ class ClientThread(QThread):
             logger.info(f"[ClientThread] Emitting session_time_updated signal with data: {data}")
             self.session_time_updated.emit(data)
 
+        def emit_password_updated(data):
+            logger.info(f"[ClientThread] Emitting password_updated signal")
+            self.password_updated.emit(data)
+
         def emit_shutdown():
             logger.info(f"[ClientThread] Emitting shutdown_requested signal")
             self.shutdown_requested.emit()
@@ -120,6 +125,7 @@ class ClientThread(QThread):
         self.client.on_session_start = emit_session_started
         self.client.on_session_stop = emit_session_stopped
         self.client.on_session_time_update = emit_session_time_updated
+        self.client.on_password_update = emit_password_updated
         self.client.on_shutdown = emit_shutdown
         self.client.on_connected = emit_connected
 
@@ -719,6 +725,9 @@ class MainClientWindow(QMainWindow):
         self.client_thread.session_time_updated.connect(
             self.on_session_time_updated, Qt.ConnectionType.QueuedConnection
         )
+        self.client_thread.password_updated.connect(
+            self.on_password_updated, Qt.ConnectionType.QueuedConnection
+        )
         self.client_thread.shutdown_requested.connect(
             self.on_shutdown_requested, Qt.ConnectionType.QueuedConnection
         )
@@ -838,6 +847,25 @@ class MainClientWindow(QMainWindow):
             # Обновляем данные сессии
             if self.current_session_data:
                 self.current_session_data['duration_minutes'] = new_duration_minutes
+
+    def on_password_updated(self, data: dict):
+        """Обработка обновления пароля администратора"""
+        logger.info(f"Password updated from server")
+        
+        try:
+            # Получаем новый хеш пароля
+            new_hash = data.get('admin_password_hash', '')
+            
+            if new_hash:
+                # Сохраняем в конфиг
+                self.config.admin_password_hash = new_hash
+                self.config.save()
+                logger.info("Admin password hash updated and saved")
+            else:
+                logger.warning("Received empty password hash from server")
+                
+        except Exception as e:
+            logger.error(f"Error updating admin password: {e}", exc_info=True)
 
     def on_shutdown_requested(self):
         """Обработка команды выключения"""

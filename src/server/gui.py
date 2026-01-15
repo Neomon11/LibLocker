@@ -1377,6 +1377,15 @@ class MainWindow(QMainWindow):
                     self.config.admin_password_hash = self.config.get('security', 'admin_password_hash', '')
                     raise save_error
 
+                # Broadcast password update to all connected clients
+                if self.server:
+                    try:
+                        asyncio.create_task(self.server.broadcast_password_update(hashed))
+                        logger.info("Password update broadcasted to clients")
+                    except Exception as broadcast_error:
+                        logger.error(f"Error broadcasting password update: {broadcast_error}")
+                        # Don't fail the whole operation if broadcast fails
+                
                 # Очистка полей
                 self.new_password_input.clear()
                 self.confirm_password_input.clear()
@@ -1385,7 +1394,7 @@ class MainWindow(QMainWindow):
                 # Обновление статуса
                 self.update_password_status()
 
-                QMessageBox.information(self, "Успех", "Пароль администратора успешно установлен!")
+                QMessageBox.information(self, "Успех", "Пароль администратора успешно установлен и разослан всем клиентам!")
                 logger.info("Admin password set successfully")
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось установить пароль:\n{str(e)}")

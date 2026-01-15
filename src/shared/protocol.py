@@ -22,6 +22,7 @@ class MessageType(Enum):
     SHUTDOWN = "shutdown"
     UNLOCK = "unlock"
     CONFIG_UPDATE = "config_update"
+    PASSWORD_UPDATE = "password_update"
 
     # Двунаправленные
     PING = "ping"
@@ -113,6 +114,18 @@ class SessionTimeUpdateMessage:
     def to_message(self) -> Message:
         return Message(
             type=MessageType.SESSION_TIME_UPDATE.value,
+            data=asdict(self)
+        )
+
+
+@dataclass
+class PasswordUpdateMessage:
+    """Сообщение об обновлении пароля администратора"""
+    admin_password_hash: str
+
+    def to_message(self) -> Message:
+        return Message(
+            type=MessageType.PASSWORD_UPDATE.value,
             data=asdict(self)
         )
 

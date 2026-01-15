@@ -373,6 +373,24 @@ class LibLockerServer:
 
         return True
 
+    async def broadcast_password_update(self, admin_password_hash: str):
+        """Отправить обновление пароля администратора всем подключенным клиентам"""
+        from ..shared.protocol import PasswordUpdateMessage
+        
+        logger.info(f"Broadcasting password update to {len(self.connected_clients)} connected clients")
+        
+        password_msg = PasswordUpdateMessage(
+            admin_password_hash=admin_password_hash
+        )
+        
+        # Отправляем всем подключенным клиентам
+        for sid in self.connected_clients.keys():
+            try:
+                await self.sio.emit('message', password_msg.to_message().to_dict(), room=sid)
+                logger.info(f"Password update sent to client {sid}")
+            except Exception as e:
+                logger.error(f"Error sending password update to {sid}: {e}")
+
     def get_connected_clients(self) -> list:
         """Получить список подключенных клиентов"""
         return [

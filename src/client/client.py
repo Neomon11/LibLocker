@@ -47,6 +47,7 @@ class LibLockerClient:
         self.on_session_start: Optional[Callable] = None
         self.on_session_stop: Optional[Callable] = None
         self.on_session_time_update: Optional[Callable] = None
+        self.on_password_update: Optional[Callable] = None
         self.on_shutdown: Optional[Callable] = None
         self.on_unlock: Optional[Callable] = None
         self.on_connected: Optional[Callable] = None
@@ -126,6 +127,8 @@ class LibLockerClient:
             await self._handle_session_stop(msg.data)
         elif msg_type == MessageType.SESSION_TIME_UPDATE.value:
             await self._handle_session_time_update(msg.data)
+        elif msg_type == MessageType.PASSWORD_UPDATE.value:
+            await self._handle_password_update(msg.data)
         elif msg_type == MessageType.SHUTDOWN.value:
             await self._handle_shutdown()
         elif msg_type == MessageType.UNLOCK.value:
@@ -186,6 +189,19 @@ class LibLockerClient:
                     self.on_session_time_update(data)
             except Exception as e:
                 logger.error(f"Error calling on_session_time_update: {e}", exc_info=True)
+
+    async def _handle_password_update(self, data: dict):
+        """Обработка команды обновления пароля администратора"""
+        logger.info(f"Password update command received")
+        
+        if self.on_password_update:
+            try:
+                if asyncio.iscoroutinefunction(self.on_password_update):
+                    await self.on_password_update(data)
+                else:
+                    self.on_password_update(data)
+            except Exception as e:
+                logger.error(f"Error calling on_password_update: {e}", exc_info=True)
 
     async def _handle_shutdown(self):
         """Обработка команды выключения"""

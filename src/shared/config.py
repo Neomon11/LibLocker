@@ -182,6 +182,10 @@ class ClientConfig(Config):
     def admin_password_hash(self) -> str:
         return self.get('security', 'admin_password_hash', '')
 
+    @admin_password_hash.setter
+    def admin_password_hash(self, value: str):
+        self.set('security', 'admin_password_hash', value)
+
     @property
     def auto_unlock_timeout(self) -> int:
         return self.get_int('security', 'auto_unlock_timeout', 10)
