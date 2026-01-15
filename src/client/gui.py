@@ -532,7 +532,8 @@ class TimerWidget(QWidget):
                 self.timer_label.setText(f"{hours:02d}:{minutes:02d}:{secs:02d}")
 
                 # Предупреждение за N минут до конца
-                if not self.warning_shown and self.remaining_seconds <= (self.warning_minutes * 60):
+                # Use < instead of <= to avoid triggering warning at session start
+                if not self.warning_shown and self.remaining_seconds < (self.warning_minutes * 60):
                     self.show_warning()
                     self.warning_shown = True
 
@@ -647,19 +648,34 @@ class TimerWidget(QWidget):
             remaining = self.end_time - now
             self.remaining_seconds = int(remaining.total_seconds())
         
-        # Обновляем отображение
+        # Recalculate warning time for the new duration
+        self.warning_minutes = self._calculate_warning_time(new_duration_minutes)
+        
+        # Reset warning flag if there's now enough time before warning
+        # (e.g., if time was extended significantly)
+        if self.remaining_seconds > (self.warning_minutes * 60):
+            self.warning_shown = False
+            logger.info(f"Warning flag reset - {self.remaining_seconds}s remaining > {self.warning_minutes * 60}s threshold")
+        
+        # Обновляем отображение (this may trigger warning if time is still low)
         self.update_display()
         
-        # Показываем уведомление
-        from PyQt6.QtWidgets import QMessageBox
-        msg = QMessageBox(None)
-        msg.setIcon(QMessageBox.Icon.Information)
-        msg.setWindowTitle("LibLocker - Изменение времени")
-        msg.setText(f"⏱️ Администратор изменил время сессии\n\nНовая длительность: {new_duration_minutes} минут")
-        msg.setInformativeText("Время окончания сессии было обновлено.")
-        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
-        msg.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint)
-        msg.exec()
+        # Показываем уведомление о изменении времени (non-blocking)
+        # Use QTimer.singleShot to avoid blocking the signal handler
+        def show_time_change_notification():
+            from PyQt6.QtWidgets import QMessageBox
+            msg = QMessageBox(None)
+            msg.setIcon(QMessageBox.Icon.Information)
+            msg.setWindowTitle("LibLocker - Изменение времени")
+            minute_word = get_russian_plural(new_duration_minutes, "минута", "минуты", "минут")
+            msg.setText(f"⏱️ Администратор изменил время сессии\n\nНовая длительность: {new_duration_minutes} {minute_word}")
+            msg.setInformativeText("Время окончания сессии было обновлено.")
+            msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+            msg.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint)
+            msg.exec()
+        
+        # Show notification after a short delay to avoid blocking
+        QTimer.singleShot(100, show_time_change_notification)
 
     def force_close(self):
         """Принудительное закрытие виджета"""
