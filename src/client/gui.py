@@ -900,7 +900,6 @@ class MainClientWindow(QMainWindow):
             msg.setStandardButtons(QMessageBox.StandardButton.Ok)
             msg.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Dialog)
             msg.exec()
-            msg.exec()
 
     def on_shutdown_requested(self):
         """Обработка команды выключения"""
