@@ -76,6 +76,8 @@ class LibLockerServer:
             await self._handle_heartbeat(sid, msg.data)
         elif msg_type == MessageType.SESSION_SYNC.value:
             await self._handle_session_sync(sid, msg.data)
+        elif msg_type == MessageType.CLIENT_SESSION_STOP_REQUEST.value:
+            await self._handle_client_session_stop_request(sid, msg.data)
         elif msg_type == MessageType.PING.value:
             await self.sio.emit('message', {
                 'type': MessageType.PONG.value,
@@ -168,6 +170,24 @@ class LibLockerServer:
         """Обработка синхронизации сессии (для автономного режима)"""
         logger.info(f"Session sync from {sid}: {data}")
         # TODO: Реализовать синхронизацию автономных сессий
+
+    async def _handle_client_session_stop_request(self, sid: str, data: dict):
+        """Обработка запроса остановки сессии от клиента"""
+        logger.info(f"Client session stop request from {sid}: {data}")
+        
+        # Находим client_id по sid
+        if sid not in self.connected_clients:
+            logger.error(f"Client {sid} not found in connected_clients")
+            return
+        
+        client_id = self.connected_clients[sid].get('client_id')
+        if not client_id:
+            logger.error(f"Client ID not found for sid {sid}")
+            return
+        
+        # Останавливаем сессию для этого клиента
+        logger.info(f"Stopping session for client {client_id} by user request")
+        await self.stop_session(client_id)
 
     async def _handle_disconnect(self, sid: str):
         """Обработка отключения клиента"""

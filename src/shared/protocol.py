@@ -14,6 +14,7 @@ class MessageType(Enum):
     CLIENT_HEARTBEAT = "client_heartbeat"
     CLIENT_STATUS_UPDATE = "client_status_update"
     SESSION_SYNC = "session_sync"
+    CLIENT_SESSION_STOP_REQUEST = "client_session_stop_request"
 
     # Сервер -> Клиент
     SESSION_START = "session_start"
@@ -126,6 +127,18 @@ class PasswordUpdateMessage:
     def to_message(self) -> Message:
         return Message(
             type=MessageType.PASSWORD_UPDATE.value,
+            data=asdict(self)
+        )
+
+
+@dataclass
+class ClientSessionStopRequestMessage:
+    """Сообщение запроса остановки сессии от клиента"""
+    reason: str = "user_request"
+
+    def to_message(self) -> Message:
+        return Message(
+            type=MessageType.CLIENT_SESSION_STOP_REQUEST.value,
             data=asdict(self)
         )
 
