@@ -309,18 +309,20 @@ class LibLockerServer:
                 
                 # Расчет стоимости сессии
                 if not active_session.free_mode and active_session.cost_per_hour > 0:
-                    # Валидация значений
-                    if duration < 0:
-                        logger.warning(f"Negative duration detected: {duration} minutes, setting to 0")
-                        duration = 0
-                    if active_session.cost_per_hour < 0:
-                        logger.warning(f"Negative cost_per_hour detected: {active_session.cost_per_hour}, setting to 0")
-                        active_session.cost_per_hour = 0
+                    # Валидация и расчет стоимости
+                    # Используем локальные переменные для расчета, чтобы избежать изменения состояния БД
+                    calc_duration = max(0, duration)  # Защита от отрицательных значений
+                    calc_cost_per_hour = max(0, active_session.cost_per_hour)  # Защита от отрицательных значений
+                    
+                    if calc_duration != duration:
+                        logger.warning(f"Negative duration detected: {duration} minutes, using 0")
+                    if calc_cost_per_hour != active_session.cost_per_hour:
+                        logger.warning(f"Negative cost_per_hour detected: {active_session.cost_per_hour}, using 0")
                     
                     # Переводим длительность в часы и умножаем на стоимость
-                    duration_hours = duration / 60.0
-                    active_session.cost = duration_hours * active_session.cost_per_hour
-                    logger.info(f"Session cost calculated: {active_session.cost:.2f} руб. ({duration:.1f} min at {active_session.cost_per_hour} руб./hour)")
+                    duration_hours = calc_duration / 60.0
+                    active_session.cost = duration_hours * calc_cost_per_hour
+                    logger.info(f"Session cost calculated: {active_session.cost:.2f} руб. ({calc_duration:.1f} min at {calc_cost_per_hour} руб./hour)")
                 else:
                     active_session.cost = 0.0
                     logger.info(f"Session is free (free_mode={active_session.free_mode})")
