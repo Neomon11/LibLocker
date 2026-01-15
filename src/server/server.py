@@ -238,6 +238,8 @@ class LibLockerServer:
                 duration_minutes=duration_minutes,
                 is_unlimited=is_unlimited,
                 cost=0.0,
+                cost_per_hour=cost_per_hour,
+                free_mode=free_mode,
                 status='active'
             )
             db_session.add(session)
@@ -304,6 +306,27 @@ class LibLockerServer:
                 # Расчет фактической длительности
                 duration = (active_session.end_time - active_session.start_time).total_seconds() / 60
                 active_session.actual_duration = int(duration)
+                
+                # Расчет стоимости сессии
+                if not active_session.free_mode and active_session.cost_per_hour > 0:
+                    # Валидация и расчет стоимости
+                    # Используем локальные переменные для расчета, чтобы избежать изменения состояния БД
+                    calc_duration = max(0, duration)  # Защита от отрицательных значений
+                    calc_cost_per_hour = max(0, active_session.cost_per_hour)  # Защита от отрицательных значений
+                    
+                    if calc_duration != duration:
+                        logger.warning(f"Negative duration detected: {duration} minutes, using 0")
+                    if calc_cost_per_hour != active_session.cost_per_hour:
+                        logger.warning(f"Negative cost_per_hour detected: {active_session.cost_per_hour}, using 0")
+                    
+                    # Переводим длительность в часы и умножаем на стоимость
+                    duration_hours = calc_duration / 60.0
+                    active_session.cost = duration_hours * calc_cost_per_hour
+                    logger.info(f"Session cost calculated: {active_session.cost:.2f} руб. ({calc_duration:.1f} min at {calc_cost_per_hour} руб./hour)")
+                else:
+                    active_session.cost = 0.0
+                    logger.info(f"Session is free (free_mode={active_session.free_mode})")
+                
                 db_session.commit()
                 logger.info(f"Session {active_session.id} stopped")
 

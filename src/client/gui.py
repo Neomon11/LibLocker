@@ -139,6 +139,8 @@ class ClientThread(QThread):
 class LockScreen(QMainWindow):
     """Полноэкранное окно блокировки (показывается ПОСЛЕ окончания сессии)"""
 
+    unlocked = pyqtSignal()  # Сигнал разблокировки администратором
+
     def __init__(self, session_data: dict, config: ClientConfig = None):
         super().__init__()
         self.session_data = session_data
@@ -316,14 +318,14 @@ class LockScreen(QMainWindow):
                     "Пароль администратора не установлен!\nОбратитесь к администратору для настройки безопасности."
                 )
                 dialog.accept()
-                self.force_close()
+                self.unlocked.emit()
                 return
             
             # Проверяем пароль через verify_password
             if verify_password(password, admin_password_hash):
                 QMessageBox.information(dialog, "Успех", "Разблокировка выполнена")
                 dialog.accept()
-                self.force_close()
+                self.unlocked.emit()
             else:
                 QMessageBox.warning(dialog, "Ошибка", "Неверный пароль")
 
@@ -867,7 +869,28 @@ class MainClientWindow(QMainWindow):
 
         # Показываем полноэкранную блокировку с конфигом
         self.lock_screen = LockScreen(self.current_session_data, self.config)
+        self.lock_screen.unlocked.connect(self.on_lock_screen_unlocked)
         self.lock_screen.show()
+
+    def on_lock_screen_unlocked(self):
+        """Обработка разблокировки экрана администратором"""
+        logger.info("Lock screen unlocked by administrator")
+        
+        # Закрываем окно блокировки
+        if self.lock_screen:
+            # Отключаем сигнал перед закрытием
+            try:
+                self.lock_screen.unlocked.disconnect(self.on_lock_screen_unlocked)
+            except TypeError:
+                # Сигнал уже был отключен или не был подключен
+                logger.debug("Signal was not connected or already disconnected")
+            
+            self.lock_screen.force_close()
+            self.lock_screen = None
+        
+        # Показываем главное окно
+        self.show()
+        self.current_session_data = None
 
     def on_session_stop_requested(self):
         """Обработка запроса остановки сессии от пользователя"""
