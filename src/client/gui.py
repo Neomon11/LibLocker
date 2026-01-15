@@ -919,14 +919,33 @@ class MainClientWindow(QMainWindow):
             self.timer_widget.force_close()
             self.timer_widget = None
 
-        # Закрываем окно блокировки если активно
-        if self.lock_screen:
-            self.lock_screen.force_close()
-            self.lock_screen = None
+        # Обновляем данные сессии с финальными значениями из stop message
+        if self.current_session_data and data:
+            # Обновляем actual_duration и cost из stop message
+            if 'actual_duration' in data:
+                self.current_session_data['duration_minutes'] = data['actual_duration']
+            if 'cost' in data:
+                # Если есть итоговая стоимость, используем её
+                # Пересчитываем cost_per_hour для корректного отображения
+                if data['cost'] > 0 and data.get('actual_duration', 0) > 0:
+                    duration_hours = data['actual_duration'] / 60.0
+                    self.current_session_data['cost_per_hour'] = data['cost'] / duration_hours
+                    self.current_session_data['free_mode'] = False
+                else:
+                    self.current_session_data['free_mode'] = True
 
-        # Показываем главное окно
-        self.show()
-        self.current_session_data = None
+        # Показываем экран блокировки (как при истечении времени)
+        # Используем обновленные данные сессии для отображения стоимости
+        if self.current_session_data:
+            self.lock_screen = LockScreen(self.current_session_data, self.config)
+            self.lock_screen.unlocked.connect(self.on_lock_screen_unlocked)
+            self.lock_screen.show()
+        else:
+            # Если данных сессии нет, просто показываем главное окно
+            logger.warning("No session data available for lock screen")
+            self.show()
+            
+        # Не очищаем current_session_data здесь, т.к. оно нужно для lock screen
 
     def on_session_time_updated(self, data: dict):
         """Обработка обновления времени сессии"""
