@@ -4,6 +4,7 @@ Tests that remaining_seconds callback is properly set and used
 """
 import sys
 import os
+from typing import Optional, Callable
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
@@ -11,14 +12,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 class MockTimerWidget:
     """Mock TimerWidget for testing"""
-    def __init__(self, remaining_seconds):
-        self.remaining_seconds = remaining_seconds
+    def __init__(self, remaining_seconds: int):
+        self.remaining_seconds: int = remaining_seconds
 
 
 class MockClient:
     """Mock LibLockerClient for testing"""
     def __init__(self):
-        self.get_remaining_seconds = None
+        self.get_remaining_seconds: Optional[Callable] = None
 
 
 class MockMainWindow:

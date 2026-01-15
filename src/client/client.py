@@ -252,7 +252,7 @@ class LibLockerClient:
                         try:
                             remaining_seconds = self.get_remaining_seconds()
                         except Exception as e:
-                            logger.error(f"Error getting remaining_seconds: {e}")
+                            logger.error(f"Error getting remaining_seconds from callback {self.get_remaining_seconds.__name__}: {e}")
                     
                     await self.send_heartbeat(remaining_seconds)
                 await asyncio.sleep(5)
