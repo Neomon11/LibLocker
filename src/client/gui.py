@@ -74,6 +74,7 @@ class ClientThread(QThread):
     session_started = pyqtSignal(dict)
     session_stopped = pyqtSignal(dict)
     session_time_updated = pyqtSignal(dict)
+    password_updated = pyqtSignal(dict)
     shutdown_requested = pyqtSignal()
     connected_to_server = pyqtSignal()
 
@@ -109,6 +110,10 @@ class ClientThread(QThread):
             logger.info(f"[ClientThread] Emitting session_time_updated signal with data: {data}")
             self.session_time_updated.emit(data)
 
+        def emit_password_updated(data):
+            logger.info(f"[ClientThread] Emitting password_updated signal")
+            self.password_updated.emit(data)
+
         def emit_shutdown():
             logger.info(f"[ClientThread] Emitting shutdown_requested signal")
             self.shutdown_requested.emit()
@@ -120,6 +125,7 @@ class ClientThread(QThread):
         self.client.on_session_start = emit_session_started
         self.client.on_session_stop = emit_session_stopped
         self.client.on_session_time_update = emit_session_time_updated
+        self.client.on_password_update = emit_password_updated
         self.client.on_shutdown = emit_shutdown
         self.client.on_connected = emit_connected
 
@@ -568,9 +574,9 @@ class TimerWidget(QWidget):
 
     def show_warning_popup(self):
         """Показать всплывающее предупреждение"""
-        # Create independent dialog without parent to avoid size constraints from widget
-        # This prevents the notification from being cut off when widget is small
-        msg = QMessageBox()
+        # Create dialog with parent to prevent app quit when closed
+        # The dialog is still independent in size/position due to WindowStaysOnTopHint
+        msg = QMessageBox(self)
         msg.setIcon(QMessageBox.Icon.Warning)
         msg.setWindowTitle("LibLocker - Предупреждение")
         
@@ -667,9 +673,9 @@ class TimerWidget(QWidget):
         # Use QTimer.singleShot to avoid blocking the signal handler
         def show_time_change_notification():
             from PyQt6.QtWidgets import QMessageBox
-            # Create independent dialog without parent to avoid size constraints from widget
-            # This prevents the notification from being cut off when widget is small
-            msg = QMessageBox()
+            # Create dialog with parent to prevent app quit when closed
+            # The dialog is still independent in size/position due to WindowStaysOnTopHint
+            msg = QMessageBox(self)
             msg.setIcon(QMessageBox.Icon.Information)
             msg.setWindowTitle("LibLocker - Изменение времени")
             minute_word = get_russian_plural(new_duration_minutes, "минута", "минуты", "минут")
@@ -718,6 +724,9 @@ class MainClientWindow(QMainWindow):
         )
         self.client_thread.session_time_updated.connect(
             self.on_session_time_updated, Qt.ConnectionType.QueuedConnection
+        )
+        self.client_thread.password_updated.connect(
+            self.on_password_updated, Qt.ConnectionType.QueuedConnection
         )
         self.client_thread.shutdown_requested.connect(
             self.on_shutdown_requested, Qt.ConnectionType.QueuedConnection
@@ -838,6 +847,67 @@ class MainClientWindow(QMainWindow):
             # Обновляем данные сессии
             if self.current_session_data:
                 self.current_session_data['duration_minutes'] = new_duration_minutes
+
+    def on_password_updated(self, data: dict):
+        """Обработка обновления пароля администратора"""
+        logger.info(f"Password updated from server")
+        
+        try:
+            # Получаем новый хеш пароля
+            new_hash = data.get('admin_password_hash', '')
+            
+            if new_hash:
+                # Сохраняем в конфиг
+                self.config.admin_password_hash = new_hash
+                self.config.save()
+                logger.info("Admin password hash updated and saved")
+                
+                # Show success notification (important security update - always show)
+                # Use QTimer.singleShot to avoid blocking
+                def show_password_update_notification():
+                    # Always show password update notification, even during active session
+                    # This is a critical security event that users should be aware of
+                    msg = QMessageBox(self)
+                    msg.setIcon(QMessageBox.Icon.Information)
+                    msg.setWindowTitle("LibLocker - Обновление пароля")
+                    msg.setText("Пароль администратора был обновлен на сервере.\n\n"
+                                "Новый пароль сохранен и будет использоваться для разблокировки.")
+                    msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+                    # Make it stay on top to ensure visibility
+                    msg.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Dialog)
+                    msg.exec()
+                
+                QTimer.singleShot(100, show_password_update_notification)
+            else:
+                logger.warning("Received empty password hash from server")
+                # Show warning for empty password (critical issue)
+                # Use QTimer.singleShot for consistency and non-blocking behavior
+                def show_empty_password_warning():
+                    msg = QMessageBox(self)
+                    msg.setIcon(QMessageBox.Icon.Warning)
+                    msg.setWindowTitle("LibLocker - Предупреждение")
+                    msg.setText("Получен пустой пароль от сервера. Пароль не был обновлен.")
+                    msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+                    msg.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Dialog)
+                    msg.exec()
+                
+                QTimer.singleShot(100, show_empty_password_warning)
+                
+        except Exception as e:
+            logger.error(f"Error updating admin password: {e}", exc_info=True)
+            # Show error message to user (critical issue)
+            # Use QTimer.singleShot for consistency and non-blocking behavior
+            def show_password_error():
+                msg = QMessageBox(self)
+                msg.setIcon(QMessageBox.Icon.Critical)
+                msg.setWindowTitle("LibLocker - Ошибка")
+                msg.setText(f"Не удалось обновить пароль администратора:\n{str(e)}\n\n"
+                           "Обратитесь к администратору.")
+                msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+                msg.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Dialog)
+                msg.exec()
+            
+            QTimer.singleShot(100, show_password_error)
 
     def on_shutdown_requested(self):
         """Обработка команды выключения"""

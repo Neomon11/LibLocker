@@ -1377,6 +1377,24 @@ class MainWindow(QMainWindow):
                     self.config.admin_password_hash = self.config.get('security', 'admin_password_hash', '')
                     raise save_error
 
+                # Broadcast password update to all connected clients
+                if self.server and self.server_thread and self.server_thread.loop:
+                    try:
+                        # Schedule the coroutine in the server's event loop (thread-safe)
+                        asyncio.run_coroutine_threadsafe(
+                            self.server.broadcast_password_update(hashed),
+                            self.server_thread.loop
+                        )
+                        logger.info("Password update scheduled for broadcast to clients")
+                    except Exception as broadcast_error:
+                        logger.error(f"Error broadcasting password update: {broadcast_error}")
+                        # Don't fail the whole operation if broadcast fails
+                        QMessageBox.warning(
+                            self,
+                            "Предупреждение",
+                            f"Пароль сохранен, но не удалось отправить обновление клиентам:\n{str(broadcast_error)}"
+                        )
+                
                 # Очистка полей
                 self.new_password_input.clear()
                 self.confirm_password_input.clear()
@@ -1385,7 +1403,23 @@ class MainWindow(QMainWindow):
                 # Обновление статуса
                 self.update_password_status()
 
-                QMessageBox.information(self, "Успех", "Пароль администратора успешно установлен!")
+                # More accurate success message
+                if self.server and self.server_thread and self.server_thread.loop:
+                    connected_count = len(self.server.connected_clients)
+                    QMessageBox.information(
+                        self, 
+                        "Успех", 
+                        f"Пароль администратора успешно установлен!\n\n"
+                        f"Обновление отправлено {connected_count} подключенным клиентам.\n"
+                        f"Офлайн-клиенты получат обновление при подключении."
+                    )
+                else:
+                    QMessageBox.information(
+                        self, 
+                        "Успех", 
+                        "Пароль администратора успешно установлен!\n\n"
+                        "Обновление будет отправлено клиентам при их подключении."
+                    )
                 logger.info("Admin password set successfully")
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось установить пароль:\n{str(e)}")
