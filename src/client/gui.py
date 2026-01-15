@@ -881,25 +881,33 @@ class MainClientWindow(QMainWindow):
             else:
                 logger.warning("Received empty password hash from server")
                 # Show warning for empty password (critical issue)
-                msg = QMessageBox(self)
-                msg.setIcon(QMessageBox.Icon.Warning)
-                msg.setWindowTitle("LibLocker - Предупреждение")
-                msg.setText("Получен пустой пароль от сервера. Пароль не был обновлен.")
-                msg.setStandardButtons(QMessageBox.StandardButton.Ok)
-                msg.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Dialog)
-                msg.exec()
+                # Use QTimer.singleShot for consistency and non-blocking behavior
+                def show_empty_password_warning():
+                    msg = QMessageBox(self)
+                    msg.setIcon(QMessageBox.Icon.Warning)
+                    msg.setWindowTitle("LibLocker - Предупреждение")
+                    msg.setText("Получен пустой пароль от сервера. Пароль не был обновлен.")
+                    msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+                    msg.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Dialog)
+                    msg.exec()
+                
+                QTimer.singleShot(100, show_empty_password_warning)
                 
         except Exception as e:
             logger.error(f"Error updating admin password: {e}", exc_info=True)
             # Show error message to user (critical issue)
-            msg = QMessageBox(self)
-            msg.setIcon(QMessageBox.Icon.Critical)
-            msg.setWindowTitle("LibLocker - Ошибка")
-            msg.setText(f"Не удалось обновить пароль администратора:\n{str(e)}\n\n"
-                       "Обратитесь к администратору.")
-            msg.setStandardButtons(QMessageBox.StandardButton.Ok)
-            msg.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Dialog)
-            msg.exec()
+            # Use QTimer.singleShot for consistency and non-blocking behavior
+            def show_password_error():
+                msg = QMessageBox(self)
+                msg.setIcon(QMessageBox.Icon.Critical)
+                msg.setWindowTitle("LibLocker - Ошибка")
+                msg.setText(f"Не удалось обновить пароль администратора:\n{str(e)}\n\n"
+                           "Обратитесь к администратору.")
+                msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+                msg.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Dialog)
+                msg.exec()
+            
+            QTimer.singleShot(100, show_password_error)
 
     def on_shutdown_requested(self):
         """Обработка команды выключения"""
