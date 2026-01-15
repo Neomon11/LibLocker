@@ -37,7 +37,7 @@ def test_async_result_checking():
         future = asyncio.run_coroutine_threadsafe(successful_operation(), loop)
         result = future.result(timeout=5.0)
         
-        assert result == True, "Expected True from successful operation"
+        assert result is True, "Expected True from successful operation"
         print("   ✅ Result properly returned: True")
         
         # Test 2: Failed operation returns False
@@ -49,7 +49,7 @@ def test_async_result_checking():
         future = asyncio.run_coroutine_threadsafe(failed_operation(), loop)
         result = future.result(timeout=5.0)
         
-        assert result == False, "Expected False from failed operation"
+        assert result is False, "Expected False from failed operation"
         print("   ✅ Result properly returned: False")
         
         # Test 3: Timeout detection
