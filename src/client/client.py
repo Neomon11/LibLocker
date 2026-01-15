@@ -52,7 +52,7 @@ class LibLockerClient:
         self.on_connected: Optional[Callable] = None
         
         # Callback для получения remaining_seconds (должен возвращать Optional[int])
-        self.get_remaining_seconds: Optional[Callable] = None
+        self.get_remaining_seconds: Optional[Callable[[], Optional[int]]] = None
 
         # Регистрация обработчиков
         self._register_handlers()

@@ -34,8 +34,8 @@ This PR fixes critical bugs in the client-server session management system relat
 - Heartbeat now includes actual remaining time: `remaining_seconds: 300` (for 5 minutes)
 
 **Files Changed:**
-- `src/client/client.py` (lines 53-55, 246-257)
-- `src/client/gui.py` (lines 11, 766-768, 784-789)
+- `src/client/client.py` (lines 53-56, 249-260)
+- `src/client/gui.py` (lines 11, 768-774, 788-793)
 
 **Flow:**
 ```
