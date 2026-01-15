@@ -568,8 +568,9 @@ class TimerWidget(QWidget):
 
     def show_warning_popup(self):
         """Показать всплывающее предупреждение"""
-        # Use self as parent to prevent application termination when dialog closes
-        msg = QMessageBox(self)
+        # Create independent dialog without parent to avoid size constraints from widget
+        # This prevents the notification from being cut off when widget is small
+        msg = QMessageBox()
         msg.setIcon(QMessageBox.Icon.Warning)
         msg.setWindowTitle("LibLocker - Предупреждение")
         
@@ -578,7 +579,8 @@ class TimerWidget(QWidget):
         msg.setText(f"⚠️ Внимание!\n\nДо конца сессии осталось {self.warning_minutes} {minute_word}.")
         msg.setInformativeText("Для продления времени обратитесь к администратору.")
         msg.setStandardButtons(QMessageBox.StandardButton.Ok)
-        msg.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint)
+        # Make it stay on top and be independent
+        msg.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Dialog)
         msg.exec()
 
     def toggle_visibility(self):
@@ -665,15 +667,17 @@ class TimerWidget(QWidget):
         # Use QTimer.singleShot to avoid blocking the signal handler
         def show_time_change_notification():
             from PyQt6.QtWidgets import QMessageBox
-            # Use self as parent to prevent application termination when dialog closes
-            msg = QMessageBox(self)
+            # Create independent dialog without parent to avoid size constraints from widget
+            # This prevents the notification from being cut off when widget is small
+            msg = QMessageBox()
             msg.setIcon(QMessageBox.Icon.Information)
             msg.setWindowTitle("LibLocker - Изменение времени")
             minute_word = get_russian_plural(new_duration_minutes, "минута", "минуты", "минут")
             msg.setText(f"⏱️ Администратор изменил время сессии\n\nНовая длительность: {new_duration_minutes} {minute_word}")
             msg.setInformativeText("Время окончания сессии было обновлено.")
             msg.setStandardButtons(QMessageBox.StandardButton.Ok)
-            msg.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint)
+            # Make it stay on top and be independent
+            msg.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Dialog)
             msg.exec()
         
         # Show notification after a short delay to avoid blocking

@@ -988,13 +988,19 @@ class MainWindow(QMainWindow):
                             # Для ограниченных сессий показываем оставшееся время
                             end_time = active_session.start_time + timedelta(minutes=active_session.duration_minutes)
                             remaining = end_time - datetime.now()
-                            if remaining.total_seconds() > 0:
-                                remaining_minutes = int(remaining.total_seconds() / 60)
+                            remaining_seconds = remaining.total_seconds()
+                            
+                            # Показываем "Завершается..." только если время истекло более 5 секунд назад
+                            # (защита от небольших расхождений в синхронизации времени)
+                            if remaining_seconds < -5:
+                                time_text = "Завершается..."
+                            else:
+                                # Показываем оставшееся время, даже если оно немного отрицательное
+                                # (округляем до 0, чтобы не показывать отрицательные значения)
+                                remaining_minutes = max(0, int(remaining_seconds / 60))
                                 hours = remaining_minutes // 60
                                 minutes = remaining_minutes % 60
                                 time_text = f"{hours:02d}:{minutes:02d} осталось"
-                            else:
-                                time_text = "Завершается..."
                 
                 self.clients_table.setItem(row, 4, QTableWidgetItem(time_text))
 
