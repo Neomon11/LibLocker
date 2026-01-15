@@ -38,6 +38,36 @@ if not WINDOWS_AVAILABLE:
 ADMIN_PASSWORD_HASH = ""  # Пустой для отладки
 
 
+def get_russian_plural(number: int, form1: str, form2: str, form5: str) -> str:
+    """
+    Возвращает правильную форму слова для русского языка в зависимости от числа
+    
+    Args:
+        number: Число
+        form1: Форма для 1 (например, "минута")
+        form2: Форма для 2-4 (например, "минуты")
+        form5: Форма для 5+ (например, "минут")
+    
+    Returns:
+        Правильная форма слова
+    
+    Examples:
+        get_russian_plural(1, "минута", "минуты", "минут") -> "минута"
+        get_russian_plural(2, "минута", "минуты", "минут") -> "минуты"
+        get_russian_plural(5, "минута", "минуты", "минут") -> "минут"
+    """
+    n = abs(number)
+    n %= 100
+    if n >= 5 and n <= 20:
+        return form5
+    n %= 10
+    if n == 1:
+        return form1
+    if n >= 2 and n <= 4:
+        return form2
+    return form5
+
+
 class ClientThread(QThread):
     """Поток для WebSocket клиента"""
 
@@ -499,6 +529,10 @@ class TimerWidget(QWidget):
         """Показать предупреждение о скором окончании сессии"""
         logger.info(f"Warning: {self.warning_minutes} minutes remaining")
 
+        # Принудительно показываем виджет если он был скрыт (ПЕРЕД показом popup)
+        if self.is_hidden:
+            self.toggle_visibility()
+
         # Звуковое уведомление
         if self.config.sound_enabled and WINDOWS_AVAILABLE:
             try:
@@ -511,16 +545,16 @@ class TimerWidget(QWidget):
         if self.config.popup_enabled:
             self.show_warning_popup()
 
-        # Принудительно показываем виджет если он был скрыт
-        if self.is_hidden:
-            self.toggle_visibility()
-
     def show_warning_popup(self):
         """Показать всплывающее предупреждение"""
-        msg = QMessageBox(self)
+        # Use None as parent to ensure dialog is centered on screen, not clipped by small widget
+        msg = QMessageBox(None)
         msg.setIcon(QMessageBox.Icon.Warning)
         msg.setWindowTitle("LibLocker - Предупреждение")
-        msg.setText(f"⚠️ Внимание!\n\nДо конца сессии осталось {self.warning_minutes} минут.")
+        
+        # Use correct Russian plural form
+        minute_word = get_russian_plural(self.warning_minutes, "минута", "минуты", "минут")
+        msg.setText(f"⚠️ Внимание!\n\nДо конца сессии осталось {self.warning_minutes} {minute_word}.")
         msg.setInformativeText("Для продления времени обратитесь к администратору.")
         msg.setStandardButtons(QMessageBox.StandardButton.Ok)
         msg.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint)
