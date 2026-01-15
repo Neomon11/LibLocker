@@ -34,8 +34,7 @@ logger = logging.getLogger(__name__)
 if not WINDOWS_AVAILABLE:
     logger.warning("Windows-specific modules not available (winsound, win32api, win32con)")
 
-# Пароль администратора для разблокировки (TODO: загружать из конфига)
-ADMIN_PASSWORD_HASH = ""  # Пустой для отладки
+# Пароль администратора для разблокировки загружается из конфига
 
 
 def get_russian_plural(number: int, form1: str, form2: str, form5: str) -> str:
@@ -73,6 +72,7 @@ class ClientThread(QThread):
 
     session_started = pyqtSignal(dict)
     session_stopped = pyqtSignal(dict)
+    session_time_updated = pyqtSignal(dict)
     shutdown_requested = pyqtSignal()
     connected_to_server = pyqtSignal()
 
@@ -104,6 +104,10 @@ class ClientThread(QThread):
             logger.info(f"[ClientThread] Emitting session_stopped signal with data: {data}")
             self.session_stopped.emit(data)
 
+        def emit_session_time_updated(data):
+            logger.info(f"[ClientThread] Emitting session_time_updated signal with data: {data}")
+            self.session_time_updated.emit(data)
+
         def emit_shutdown():
             logger.info(f"[ClientThread] Emitting shutdown_requested signal")
             self.shutdown_requested.emit()
@@ -114,6 +118,7 @@ class ClientThread(QThread):
 
         self.client.on_session_start = emit_session_started
         self.client.on_session_stop = emit_session_stopped
+        self.client.on_session_time_update = emit_session_time_updated
         self.client.on_shutdown = emit_shutdown
         self.client.on_connected = emit_connected
 
@@ -127,9 +132,10 @@ class ClientThread(QThread):
 class LockScreen(QMainWindow):
     """Полноэкранное окно блокировки (показывается ПОСЛЕ окончания сессии)"""
 
-    def __init__(self, session_data: dict):
+    def __init__(self, session_data: dict, config: ClientConfig = None):
         super().__init__()
         self.session_data = session_data
+        self.config = config or ClientConfig()
 
         # Настройки тарификации (для отображения итоговой стоимости)
         self.cost_per_hour = session_data.get('cost_per_hour', 0.0)
@@ -293,8 +299,21 @@ class LockScreen(QMainWindow):
 
         def check_password():
             password = password_input.text()
-            # TODO: Проверка пароля через verify_password
-            if password == "admin" or not ADMIN_PASSWORD_HASH:  # Отладка
+            admin_password_hash = self.config.admin_password_hash
+            
+            # Если пароль не установлен, предупреждаем но разрешаем
+            if not admin_password_hash:
+                QMessageBox.warning(
+                    dialog, 
+                    "Предупреждение", 
+                    "Пароль администратора не установлен!\nОбратитесь к администратору для настройки безопасности."
+                )
+                dialog.accept()
+                self.close()
+                return
+            
+            # Проверяем пароль через verify_password
+            if verify_password(password, admin_password_hash):
                 QMessageBox.information(dialog, "Успех", "Разблокировка выполнена")
                 dialog.accept()
                 self.close()
@@ -608,6 +627,40 @@ class TimerWidget(QWidget):
         """Остановить таймер"""
         self.update_timer.stop()
 
+    def update_session_time(self, new_duration_minutes: int):
+        """Обновить время сессии (вызывается при изменении админом)"""
+        logger.info(f"Updating session time to {new_duration_minutes} minutes")
+        
+        if self.is_unlimited:
+            logger.warning("Cannot update time for unlimited session")
+            return
+        
+        # Обновляем время окончания
+        self.end_time = self.start_time + timedelta(minutes=new_duration_minutes)
+        self.total_seconds = new_duration_minutes * 60
+        
+        # Пересчитываем remaining_seconds
+        now = datetime.now()
+        if now >= self.end_time:
+            self.remaining_seconds = 0
+        else:
+            remaining = self.end_time - now
+            self.remaining_seconds = int(remaining.total_seconds())
+        
+        # Обновляем отображение
+        self.update_display()
+        
+        # Показываем уведомление
+        from PyQt6.QtWidgets import QMessageBox
+        msg = QMessageBox(None)
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.setWindowTitle("LibLocker - Изменение времени")
+        msg.setText(f"⏱️ Администратор изменил время сессии\n\nНовая длительность: {new_duration_minutes} минут")
+        msg.setInformativeText("Время окончания сессии было обновлено.")
+        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint)
+        msg.exec()
+
     def force_close(self):
         """Принудительное закрытие виджета"""
         self.update_timer.stop()
@@ -640,6 +693,9 @@ class MainClientWindow(QMainWindow):
         )
         self.client_thread.session_stopped.connect(
             self.on_session_stopped, Qt.ConnectionType.QueuedConnection
+        )
+        self.client_thread.session_time_updated.connect(
+            self.on_session_time_updated, Qt.ConnectionType.QueuedConnection
         )
         self.client_thread.shutdown_requested.connect(
             self.on_shutdown_requested, Qt.ConnectionType.QueuedConnection
@@ -712,8 +768,8 @@ class MainClientWindow(QMainWindow):
             self.timer_widget.force_close()
             self.timer_widget = None
 
-        # Показываем полноэкранную блокировку
-        self.lock_screen = LockScreen(self.current_session_data)
+        # Показываем полноэкранную блокировку с конфигом
+        self.lock_screen = LockScreen(self.current_session_data, self.config)
         self.lock_screen.show()
 
     def on_session_stopped(self, data: dict):
@@ -733,6 +789,19 @@ class MainClientWindow(QMainWindow):
         # Показываем главное окно
         self.show()
         self.current_session_data = None
+
+    def on_session_time_updated(self, data: dict):
+        """Обработка обновления времени сессии"""
+        logger.info(f"Session time updated: {data}")
+        
+        # Обновляем виджет таймера если активен
+        if self.timer_widget:
+            new_duration_minutes = data.get('new_duration_minutes', 0)
+            self.timer_widget.update_session_time(new_duration_minutes)
+            
+            # Обновляем данные сессии
+            if self.current_session_data:
+                self.current_session_data['duration_minutes'] = new_duration_minutes
 
     def on_shutdown_requested(self):
         """Обработка команды выключения"""

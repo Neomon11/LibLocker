@@ -714,21 +714,28 @@ class MainWindow(QMainWindow):
         self.btn_start_session = QPushButton("🎮 Начать сессию")
         self.btn_start_session.clicked.connect(self.start_session)
         self.btn_start_session.setMinimumHeight(40)
-        self.btn_start_session.setMinimumWidth(250)
+        self.btn_start_session.setMinimumWidth(200)
         self.btn_start_session.setStyleSheet(BUTTON_STYLE_PRIMARY)
         buttons_layout.addWidget(self.btn_start_session)
+
+        self.btn_edit_session = QPushButton("⏱️ Изменить время")
+        self.btn_edit_session.clicked.connect(self.edit_session_time)
+        self.btn_edit_session.setMinimumHeight(40)
+        self.btn_edit_session.setMinimumWidth(200)
+        self.btn_edit_session.setStyleSheet(BUTTON_STYLE_INFO)
+        buttons_layout.addWidget(self.btn_edit_session)
 
         self.btn_stop_session = QPushButton("⏹️ Остановить сессию")
         self.btn_stop_session.clicked.connect(self.stop_session)
         self.btn_stop_session.setMinimumHeight(40)
-        self.btn_stop_session.setMinimumWidth(250)
+        self.btn_stop_session.setMinimumWidth(200)
         self.btn_stop_session.setStyleSheet(BUTTON_STYLE_DANGER)
         buttons_layout.addWidget(self.btn_stop_session)
 
         self.btn_shutdown = QPushButton("🔌 Выключить ПК")
         self.btn_shutdown.clicked.connect(self.shutdown_client)
         self.btn_shutdown.setMinimumHeight(40)
-        self.btn_shutdown.setMinimumWidth(250)
+        self.btn_shutdown.setMinimumWidth(200)
         self.btn_shutdown.setStyleSheet(BUTTON_STYLE_WARNING)
         buttons_layout.addWidget(self.btn_shutdown)
 
@@ -933,24 +940,63 @@ class MainWindow(QMainWindow):
             clients = db_session.query(ClientModel).all()
             self.clients_table.setRowCount(len(clients))
 
+            # Получаем список подключенных клиентов
+            connected_client_ids = {info['client_id'] for info in self.server.connected_clients.values()}
+
             for row, client in enumerate(clients):
                 self.clients_table.setItem(row, 0, QTableWidgetItem(str(client.id)))
                 self.clients_table.setItem(row, 1, QTableWidgetItem(client.name))
                 self.clients_table.setItem(row, 2, QTableWidgetItem(client.ip_address or ""))
 
-                # Статус с цветом
-                status_item = QTableWidgetItem(client.status)
-                if client.status == ClientStatus.ONLINE.value:
-                    status_item.setBackground(QColor(144, 238, 144))  # Светло-зеленый
-                elif client.status == ClientStatus.IN_SESSION.value:
-                    status_item.setBackground(QColor(173, 216, 230))  # Светло-голубой
+                # Определяем реальный статус на основе подключения
+                is_connected = client.id in connected_client_ids
+                
+                # Локализация статуса
+                if is_connected:
+                    if client.status == ClientStatus.IN_SESSION.value:
+                        status_text = "В сессии"
+                        status_color = QColor(173, 216, 230)  # Светло-голубой
+                    else:
+                        status_text = "Онлайн"
+                        status_color = QColor(144, 238, 144)  # Светло-зеленый
                 else:
-                    status_item.setBackground(QColor(211, 211, 211))  # Светло-серый
+                    status_text = "Оффлайн"
+                    status_color = QColor(211, 211, 211)  # Светло-серый
 
+                status_item = QTableWidgetItem(status_text)
+                status_item.setBackground(status_color)
                 self.clients_table.setItem(row, 3, status_item)
 
-                # Время сессии (TODO: реализовать подсчет)
-                self.clients_table.setItem(row, 4, QTableWidgetItem(""))
+                # Время сессии - получаем из активной сессии
+                time_text = ""
+                if client.status == ClientStatus.IN_SESSION.value:
+                    active_session = db_session.query(SessionModel).filter_by(
+                        client_id=client.id,
+                        status='active'
+                    ).first()
+                    
+                    if active_session:
+                        from datetime import datetime, timedelta
+                        if active_session.is_unlimited:
+                            # Для безлимита показываем прошедшее время
+                            elapsed = datetime.now() - active_session.start_time
+                            elapsed_minutes = int(elapsed.total_seconds() / 60)
+                            hours = elapsed_minutes // 60
+                            minutes = elapsed_minutes % 60
+                            time_text = f"∞ {hours:02d}:{minutes:02d}"
+                        else:
+                            # Для ограниченных сессий показываем оставшееся время
+                            end_time = active_session.start_time + timedelta(minutes=active_session.duration_minutes)
+                            remaining = end_time - datetime.now()
+                            if remaining.total_seconds() > 0:
+                                remaining_minutes = int(remaining.total_seconds() / 60)
+                                hours = remaining_minutes // 60
+                                minutes = remaining_minutes % 60
+                                time_text = f"{hours:02d}:{minutes:02d} осталось"
+                            else:
+                                time_text = "Завершается..."
+                
+                self.clients_table.setItem(row, 4, QTableWidgetItem(time_text))
 
                 # Действия (пока пусто)
                 self.clients_table.setItem(row, 5, QTableWidgetItem(""))
@@ -1093,6 +1139,63 @@ class MainWindow(QMainWindow):
             )
 
             QMessageBox.information(self, "Успех", "Сессия начата")
+
+    def edit_session_time(self):
+        """Изменить время активной сессии"""
+        selected_rows = self.clients_table.selectedItems()
+        if not selected_rows:
+            QMessageBox.warning(self, "Ошибка", "Выберите клиента")
+            return
+
+        row = selected_rows[0].row()
+        client_id = int(self.clients_table.item(row, 0).text())
+        
+        # Проверяем, есть ли активная сессия
+        db_session = self.db.get_session()
+        try:
+            active_session = db_session.query(SessionModel).filter_by(
+                client_id=client_id,
+                status='active'
+            ).first()
+            
+            if not active_session:
+                QMessageBox.warning(self, "Ошибка", "У выбранного клиента нет активной сессии")
+                return
+            
+            if active_session.is_unlimited:
+                QMessageBox.information(self, "Информация", "Невозможно изменить время для безлимитной сессии")
+                return
+            
+            # Открываем диалог для ввода нового времени
+            dialog = SessionDialog(self)
+            current_minutes = active_session.duration_minutes
+            dialog.hours_spin.setValue(current_minutes // 60)
+            dialog.minutes_spin.setValue(current_minutes % 60)
+            
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                duration, is_unlimited = dialog.get_duration()
+                
+                if is_unlimited:
+                    QMessageBox.warning(self, "Ошибка", "Нельзя изменить ограниченную сессию на безлимитную")
+                    return
+                
+                if duration <= 0:
+                    QMessageBox.warning(self, "Ошибка", "Время сессии должно быть больше 0")
+                    return
+                
+                # Обновляем время сессии
+                asyncio.run_coroutine_threadsafe(
+                    self.server.update_session_time(client_id, duration),
+                    self.server_thread.loop
+                )
+                
+                QMessageBox.information(self, "Успех", f"Время сессии изменено на {duration} минут")
+                
+        except Exception as e:
+            logger.error(f"Error editing session time: {e}")
+            QMessageBox.critical(self, "Ошибка", f"Не удалось изменить время сессии:\n{str(e)}")
+        finally:
+            db_session.close()
 
     def stop_session(self):
         """Остановить сессию для выбранного клиента"""

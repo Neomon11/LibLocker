@@ -295,6 +295,57 @@ class LibLockerServer:
         finally:
             db_session.close()
 
+    async def update_session_time(self, client_id: int, new_duration_minutes: int) -> bool:
+        """Обновить время сессии для клиента"""
+        logger.info(f"Updating session time for client {client_id} to {new_duration_minutes} minutes")
+
+        # Находим sid клиента
+        client_sid = None
+        for sid, info in self.connected_clients.items():
+            if info['client_id'] == client_id:
+                client_sid = sid
+                break
+
+        if not client_sid:
+            logger.error(f"Client {client_id} not connected")
+            return False
+
+        # Обновляем сессию в БД
+        db_session = self.db.get_session()
+        try:
+            active_session = db_session.query(SessionModel).filter_by(
+                client_id=client_id,
+                status='active'
+            ).first()
+
+            if not active_session:
+                logger.error(f"No active session for client {client_id}")
+                return False
+
+            # Обновляем длительность
+            active_session.duration_minutes = new_duration_minutes
+            db_session.commit()
+
+            # Отправляем команду клиенту
+            from ..shared.protocol import SessionTimeUpdateMessage
+
+            update_msg = SessionTimeUpdateMessage(
+                new_duration_minutes=new_duration_minutes,
+                reason="admin_update"
+            )
+
+            await self.sio.emit('message', update_msg.to_message().to_dict(), room=client_sid)
+
+            logger.info(f"Session time updated for client {client_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error updating session time: {e}")
+            db_session.rollback()
+            return False
+        finally:
+            db_session.close()
+
     async def shutdown_client(self, client_id: int) -> bool:
         """Отправить команду выключения клиента"""
         logger.info(f"Shutting down client {client_id}")

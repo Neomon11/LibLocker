@@ -18,6 +18,7 @@ class MessageType(Enum):
     # Сервер -> Клиент
     SESSION_START = "session_start"
     SESSION_STOP = "session_stop"
+    SESSION_TIME_UPDATE = "session_time_update"
     SHUTDOWN = "shutdown"
     UNLOCK = "unlock"
     CONFIG_UPDATE = "config_update"
@@ -99,6 +100,19 @@ class HeartbeatMessage:
     def to_message(self) -> Message:
         return Message(
             type=MessageType.CLIENT_HEARTBEAT.value,
+            data=asdict(self)
+        )
+
+
+@dataclass
+class SessionTimeUpdateMessage:
+    """Сообщение об изменении времени сессии администратором"""
+    new_duration_minutes: int
+    reason: str = "admin_update"
+
+    def to_message(self) -> Message:
+        return Message(
+            type=MessageType.SESSION_TIME_UPDATE.value,
             data=asdict(self)
         )
 
