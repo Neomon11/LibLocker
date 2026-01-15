@@ -405,6 +405,7 @@ class TimerWidget(QWidget):
         self.update_timer.start(1000)  # Обновление каждую секунду
 
         self.is_hidden = False
+        self.btn_end_session = None  # Инициализируем для безопасности
         self.init_ui()
 
     def _calculate_warning_time(self, duration_minutes: int) -> int:
@@ -622,6 +623,8 @@ class TimerWidget(QWidget):
             self.resize(width, height)
             self.timer_label.show()
             self.cost_label.show()
+            if self.btn_end_session:
+                self.btn_end_session.show()
             self.btn_hide.setText("×")
             self.is_hidden = False
             # Восстанавливаем обычную прозрачность
@@ -638,6 +641,8 @@ class TimerWidget(QWidget):
             self.resize(30, 20)
             self.timer_label.hide()
             self.cost_label.hide()
+            if self.btn_end_session:
+                self.btn_end_session.hide()
             self.btn_hide.setText("⏱")
             self.is_hidden = True
             # Полностью прозрачный фон, только иконка видна
