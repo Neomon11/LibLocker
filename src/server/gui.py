@@ -1378,13 +1378,22 @@ class MainWindow(QMainWindow):
                     raise save_error
 
                 # Broadcast password update to all connected clients
-                if self.server:
+                if self.server and self.server_thread and self.server_thread.loop:
                     try:
-                        asyncio.create_task(self.server.broadcast_password_update(hashed))
-                        logger.info("Password update broadcasted to clients")
+                        # Schedule the coroutine in the server's event loop (thread-safe)
+                        asyncio.run_coroutine_threadsafe(
+                            self.server.broadcast_password_update(hashed),
+                            self.server_thread.loop
+                        )
+                        logger.info("Password update scheduled for broadcast to clients")
                     except Exception as broadcast_error:
                         logger.error(f"Error broadcasting password update: {broadcast_error}")
                         # Don't fail the whole operation if broadcast fails
+                        QMessageBox.warning(
+                            self,
+                            "Предупреждение",
+                            f"Пароль сохранен, но не удалось отправить обновление клиентам:\n{str(broadcast_error)}"
+                        )
                 
                 # Очистка полей
                 self.new_password_input.clear()

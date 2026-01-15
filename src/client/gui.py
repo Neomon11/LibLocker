@@ -861,11 +861,38 @@ class MainClientWindow(QMainWindow):
                 self.config.admin_password_hash = new_hash
                 self.config.save()
                 logger.info("Admin password hash updated and saved")
+                
+                # Show success notification (non-intrusive, informational)
+                # Use QTimer.singleShot to avoid blocking
+                def show_password_update_notification():
+                    # Only show if main window is visible (don't interrupt active session)
+                    if self.isVisible():
+                        QMessageBox.information(
+                            self,
+                            "LibLocker - Обновление пароля",
+                            "Пароль администратора был обновлен на сервере.\n\n"
+                            "Новый пароль сохранен и будет использоваться для разблокировки."
+                        )
+                
+                QTimer.singleShot(100, show_password_update_notification)
             else:
                 logger.warning("Received empty password hash from server")
+                # Show warning for empty password
+                QMessageBox.warning(
+                    self,
+                    "LibLocker - Предупреждение",
+                    "Получен пустой пароль от сервера. Пароль не был обновлен."
+                )
                 
         except Exception as e:
             logger.error(f"Error updating admin password: {e}", exc_info=True)
+            # Show error message to user
+            QMessageBox.critical(
+                self,
+                "LibLocker - Ошибка",
+                f"Не удалось обновить пароль администратора:\n{str(e)}\n\n"
+                "Обратитесь к администратору."
+            )
 
     def on_shutdown_requested(self):
         """Обработка команды выключения"""
