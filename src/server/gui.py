@@ -1150,14 +1150,25 @@ class MainWindow(QMainWindow):
             hourly_rate = self.hourly_rate_spin.value()
 
             # Запускаем сессию через asyncio
-            asyncio.run_coroutine_threadsafe(
-                self.server.start_session(
-                    client_id, duration, is_unlimited, hourly_rate, free_mode
-                ),
-                self.server_thread.loop
-            )
-
-            QMessageBox.information(self, "Успех", "Сессия начата")
+            try:
+                future = asyncio.run_coroutine_threadsafe(
+                    self.server.start_session(
+                        client_id, duration, is_unlimited, hourly_rate, free_mode
+                    ),
+                    self.server_thread.loop
+                )
+                # Ждем результат с таймаутом
+                result = future.result(timeout=5.0)
+                
+                if result:
+                    QMessageBox.information(self, "Успех", "Сессия начата")
+                else:
+                    QMessageBox.warning(self, "Ошибка", "Не удалось начать сессию.\nКлиент не подключен или произошла ошибка.")
+            except TimeoutError:
+                QMessageBox.warning(self, "Ошибка", "Время ожидания истекло при запуске сессии")
+            except Exception as e:
+                logger.error(f"Error starting session: {e}", exc_info=True)
+                QMessageBox.critical(self, "Ошибка", f"Не удалось начать сессию:\n{str(e)}")
 
     def edit_session_time(self):
         """Изменить время активной сессии"""
@@ -1203,12 +1214,23 @@ class MainWindow(QMainWindow):
                     return
                 
                 # Обновляем время сессии
-                asyncio.run_coroutine_threadsafe(
-                    self.server.update_session_time(client_id, duration),
-                    self.server_thread.loop
-                )
-                
-                QMessageBox.information(self, "Успех", f"Время сессии изменено на {duration} минут")
+                try:
+                    future = asyncio.run_coroutine_threadsafe(
+                        self.server.update_session_time(client_id, duration),
+                        self.server_thread.loop
+                    )
+                    # Ждем результат с таймаутом
+                    result = future.result(timeout=5.0)
+                    
+                    if result:
+                        QMessageBox.information(self, "Успех", f"Время сессии изменено на {duration} минут")
+                    else:
+                        QMessageBox.warning(self, "Ошибка", "Не удалось изменить время сессии.\nКлиент не подключен или произошла ошибка.")
+                except TimeoutError:
+                    QMessageBox.warning(self, "Ошибка", "Время ожидания истекло при изменении времени сессии")
+                except Exception as update_error:
+                    logger.error(f"Error updating session time: {update_error}", exc_info=True)
+                    QMessageBox.critical(self, "Ошибка", f"Не удалось изменить время сессии:\n{str(update_error)}")
                 
         except Exception as e:
             logger.error(f"Error editing session time: {e}")
@@ -1227,12 +1249,23 @@ class MainWindow(QMainWindow):
         client_id = int(self.clients_table.item(row, 0).text())
 
         # Останавливаем сессию
-        asyncio.run_coroutine_threadsafe(
-            self.server.stop_session(client_id),
-            self.server_thread.loop
-        )
-
-        QMessageBox.information(self, "Успех", "Сессия остановлена")
+        try:
+            future = asyncio.run_coroutine_threadsafe(
+                self.server.stop_session(client_id),
+                self.server_thread.loop
+            )
+            # Ждем результат с таймаутом
+            result = future.result(timeout=5.0)
+            
+            if result:
+                QMessageBox.information(self, "Успех", "Сессия остановлена")
+            else:
+                QMessageBox.warning(self, "Ошибка", "Не удалось остановить сессию.\nКлиент не подключен или произошла ошибка.")
+        except TimeoutError:
+            QMessageBox.warning(self, "Ошибка", "Время ожидания истекло при остановке сессии")
+        except Exception as e:
+            logger.error(f"Error stopping session: {e}", exc_info=True)
+            QMessageBox.critical(self, "Ошибка", f"Не удалось остановить сессию:\n{str(e)}")
 
     def shutdown_client(self):
         """Выключить компьютер клиента"""
@@ -1251,11 +1284,23 @@ class MainWindow(QMainWindow):
         )
 
         if reply == QMessageBox.StandardButton.Yes:
-            asyncio.run_coroutine_threadsafe(
-                self.server.shutdown_client(client_id),
-                self.server_thread.loop
-            )
-            QMessageBox.information(self, "Успех", "Команда выключения отправлена")
+            try:
+                future = asyncio.run_coroutine_threadsafe(
+                    self.server.shutdown_client(client_id),
+                    self.server_thread.loop
+                )
+                # Ждем результат с таймаутом
+                result = future.result(timeout=5.0)
+                
+                if result:
+                    QMessageBox.information(self, "Успех", "Команда выключения отправлена")
+                else:
+                    QMessageBox.warning(self, "Ошибка", "Не удалось отправить команду выключения.\nКлиент не подключен или произошла ошибка.")
+            except TimeoutError:
+                QMessageBox.warning(self, "Ошибка", "Время ожидания истекло при отправке команды выключения")
+            except Exception as e:
+                logger.error(f"Error shutting down client: {e}", exc_info=True)
+                QMessageBox.critical(self, "Ошибка", f"Не удалось отправить команду выключения:\n{str(e)}")
 
     def save_settings(self):
         """Сохранить настройки"""
