@@ -50,6 +50,9 @@ class LibLockerClient:
         self.on_shutdown: Optional[Callable] = None
         self.on_unlock: Optional[Callable] = None
         self.on_connected: Optional[Callable] = None
+        
+        # Callback для получения remaining_seconds (должен возвращать Optional[int])
+        self.get_remaining_seconds: Optional[Callable] = None
 
         # Регистрация обработчиков
         self._register_handlers()
@@ -243,7 +246,15 @@ class LibLockerClient:
         try:
             while True:
                 if self.connected:
-                    await self.send_heartbeat()
+                    # Получаем remaining_seconds из callback если установлен
+                    remaining_seconds = None
+                    if self.get_remaining_seconds:
+                        try:
+                            remaining_seconds = self.get_remaining_seconds()
+                        except Exception as e:
+                            logger.error(f"Error getting remaining_seconds: {e}")
+                    
+                    await self.send_heartbeat(remaining_seconds)
                 await asyncio.sleep(5)
         except asyncio.CancelledError:
             logger.info("Client stopping...")
