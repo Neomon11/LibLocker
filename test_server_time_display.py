@@ -16,7 +16,10 @@ def test_time_display_logic():
     print("Testing server GUI time display logic")
     print("="*60)
     
-    # Simulate the logic from server GUI
+    # NOTE: This function intentionally duplicates the logic from server GUI
+    # to verify the expected behavior. While this creates some duplication,
+    # it ensures the test validates the actual requirements independently
+    # of the production code structure.
     def get_time_text(remaining_seconds):
         """Simulate the server GUI time display logic"""
         # Показываем "Завершается..." только если время истекло более 5 секунд назад

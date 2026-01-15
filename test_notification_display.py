@@ -4,9 +4,61 @@ Tests that notifications are properly displayed and not cut off
 """
 import sys
 import os
+import re
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+
+
+def extract_method_content(file_content, method_name):
+    """
+    Extract a method's content from Python source code.
+    Uses regex to find method boundaries.
+    
+    Args:
+        file_content: Full source code as string
+        method_name: Name of method to extract (e.g., 'show_warning_popup')
+    
+    Returns:
+        Method content as string, or None if not found
+    """
+    # Pattern to match method definition (with or without leading newline)
+    pattern = rf'(\n\s*)?def {re.escape(method_name)}\([^)]*\):'
+    
+    # Find method start
+    method_match = re.search(pattern, file_content, re.MULTILINE)
+    if not method_match:
+        return None
+    
+    start_idx = method_match.start()
+    
+    # Find the actual start of the def line (after any leading newline)
+    def_line_start = file_content[start_idx:].find('def ')
+    start_idx = start_idx + def_line_start
+    
+    # Find the next method or class at the same indentation level
+    # Get the indentation of this method
+    def_line = file_content[start_idx:start_idx+100].split('\n')[0]
+    indent = len(def_line) - len(def_line.lstrip())
+    
+    # Look for next def or class at same or lower indentation
+    lines = file_content[start_idx:].split('\n')
+    end_line_idx = 1  # Start after method definition line
+    
+    for i, line in enumerate(lines[1:], 1):
+        # Skip empty lines and comments
+        if not line.strip() or line.strip().startswith('#'):
+            continue
+        
+        # Check if this line has equal or less indentation and starts with def or class
+        if len(line) - len(line.lstrip()) <= indent and (line.strip().startswith('def ') or line.strip().startswith('class ')):
+            end_line_idx = i
+            break
+    else:
+        end_line_idx = len(lines)
+    
+    method_content = '\n'.join(lines[:end_line_idx])
+    return method_content
 
 
 def test_notification_not_parented_to_widget():
@@ -22,64 +74,45 @@ def test_notification_not_parented_to_widget():
         content = f.read()
     
     # Check that show_warning_popup creates QMessageBox without parent
-    if 'def show_warning_popup(self):' in content:
-        # Find the method - look for the next method or end of class
-        start_idx = content.index('def show_warning_popup(self):')
-        # Try to find next method, or use end of file if it's the last method
-        next_method_idx = content.find('\n    def ', start_idx + 1)
-        if next_method_idx == -1:
-            # This is the last method, find the end of the class or file
-            next_class_idx = content.find('\nclass ', start_idx + 1)
-            end_idx = next_class_idx if next_class_idx != -1 else len(content)
-        else:
-            end_idx = next_method_idx
-        method_content = content[start_idx:end_idx]
-        
-        # Check that it creates QMessageBox() without self as parent
-        if 'msg = QMessageBox()' in method_content:
-            print("✓ show_warning_popup creates independent QMessageBox")
-        else:
-            print("✗ show_warning_popup still uses widget as parent")
-            return False
-        
-        # Check that it sets proper window flags
-        if 'Qt.WindowType.Dialog' in method_content:
-            print("✓ show_warning_popup sets Dialog window flag")
-        else:
-            print("✗ show_warning_popup missing Dialog window flag")
-            return False
-    else:
+    method_content = extract_method_content(content, 'show_warning_popup')
+    
+    if method_content is None:
         print("✗ show_warning_popup method not found")
         return False
     
-    # Check that update_session_time notification is also independent
-    if 'def update_session_time(self' in content:
-        # Find the method - look for the next method or end of class
-        start_idx = content.index('def update_session_time(self')
-        # Try to find next method, or use end of file if it's the last method
-        next_method_idx = content.find('\n    def ', start_idx + 1)
-        if next_method_idx == -1:
-            # This is the last method, find the end of the class or file
-            next_class_idx = content.find('\nclass ', start_idx + 1)
-            method_content = content[start_idx:next_class_idx if next_class_idx != -1 else len(content)]
-        else:
-            method_content = content[start_idx:next_method_idx]
-        
-        # Check for independent QMessageBox in nested function
-        if 'msg = QMessageBox()' in method_content:
-            print("✓ update_session_time notification creates independent QMessageBox")
-        else:
-            print("✗ update_session_time notification still uses widget as parent")
-            return False
-        
-        # Check that it sets proper window flags
-        if 'Qt.WindowType.Dialog' in method_content:
-            print("✓ update_session_time notification sets Dialog window flag")
-        else:
-            print("✗ update_session_time notification missing Dialog window flag")
-            return False
+    # Check that it creates QMessageBox() without self as parent
+    if 'msg = QMessageBox()' in method_content:
+        print("✓ show_warning_popup creates independent QMessageBox")
     else:
+        print("✗ show_warning_popup still uses widget as parent")
+        return False
+    
+    # Check that it sets proper window flags
+    if 'Qt.WindowType.Dialog' in method_content:
+        print("✓ show_warning_popup sets Dialog window flag")
+    else:
+        print("✗ show_warning_popup missing Dialog window flag")
+        return False
+    
+    # Check that update_session_time notification is also independent
+    method_content = extract_method_content(content, 'update_session_time')
+    
+    if method_content is None:
         print("✗ update_session_time method not found")
+        return False
+    
+    # Check for independent QMessageBox in nested function
+    if 'msg = QMessageBox()' in method_content:
+        print("✓ update_session_time notification creates independent QMessageBox")
+    else:
+        print("✗ update_session_time notification still uses widget as parent")
+        return False
+    
+    # Check that it sets proper window flags
+    if 'Qt.WindowType.Dialog' in method_content:
+        print("✓ update_session_time notification sets Dialog window flag")
+    else:
+        print("✗ update_session_time notification missing Dialog window flag")
         return False
     
     print("\n✅ All notification dialogs are independent from widget")
