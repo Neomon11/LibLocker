@@ -568,9 +568,9 @@ class TimerWidget(QWidget):
 
     def show_warning_popup(self):
         """Показать всплывающее предупреждение"""
-        # Create independent dialog without parent to avoid size constraints from widget
-        # This prevents the notification from being cut off when widget is small
-        msg = QMessageBox()
+        # Create dialog with parent to prevent app quit when closed
+        # The dialog is still independent in size/position due to WindowStaysOnTopHint
+        msg = QMessageBox(self)
         msg.setIcon(QMessageBox.Icon.Warning)
         msg.setWindowTitle("LibLocker - Предупреждение")
         
@@ -667,9 +667,9 @@ class TimerWidget(QWidget):
         # Use QTimer.singleShot to avoid blocking the signal handler
         def show_time_change_notification():
             from PyQt6.QtWidgets import QMessageBox
-            # Create independent dialog without parent to avoid size constraints from widget
-            # This prevents the notification from being cut off when widget is small
-            msg = QMessageBox()
+            # Create dialog with parent to prevent app quit when closed
+            # The dialog is still independent in size/position due to WindowStaysOnTopHint
+            msg = QMessageBox(self)
             msg.setIcon(QMessageBox.Icon.Information)
             msg.setWindowTitle("LibLocker - Изменение времени")
             minute_word = get_russian_plural(new_duration_minutes, "минута", "минуты", "минут")
