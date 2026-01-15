@@ -242,6 +242,18 @@ class LibLockerClient:
         await self.sio.emit('message', heartbeat_msg.to_message().to_dict())
         logger.debug("Heartbeat sent")
 
+    async def request_session_stop(self):
+        """Запрос остановки сессии от клиента"""
+        if not self.connected:
+            logger.warning("Cannot request session stop: not connected to server")
+            return
+
+        from ..shared.protocol import ClientSessionStopRequestMessage
+        
+        stop_request_msg = ClientSessionStopRequestMessage(reason='user_request')
+        await self.sio.emit('message', stop_request_msg.to_message().to_dict())
+        logger.info("Session stop request sent to server")
+
     async def connect(self):
         """Подключение к серверу"""
         try:

@@ -316,14 +316,14 @@ class LockScreen(QMainWindow):
                     "Пароль администратора не установлен!\nОбратитесь к администратору для настройки безопасности."
                 )
                 dialog.accept()
-                self.close()
+                self.force_close()
                 return
             
             # Проверяем пароль через verify_password
             if verify_password(password, admin_password_hash):
                 QMessageBox.information(dialog, "Успех", "Разблокировка выполнена")
                 dialog.accept()
-                self.close()
+                self.force_close()
             else:
                 QMessageBox.warning(dialog, "Ошибка", "Неверный пароль")
 
@@ -369,6 +369,7 @@ class TimerWidget(QWidget):
     """Компактный виджет таймера для отображения оставшегося времени во время сессии"""
 
     session_finished = pyqtSignal()  # Сигнал окончания времени сессии
+    session_stop_requested = pyqtSignal()  # Сигнал запроса остановки сессии пользователем
 
     def __init__(self, session_data: dict, config: ClientConfig = None):
         super().__init__()
@@ -450,7 +451,7 @@ class TimerWidget(QWidget):
         self.btn_hide = QPushButton("×")
         self.btn_hide.setMaximumSize(20, 20)
         self.btn_hide.clicked.connect(self.toggle_visibility)
-        self.btn_hide.setStyleSheet("QPushButton { background: transparent; color: #666; font-size: 16px; border: none; }")
+        self.btn_hide.setStyleSheet("QPushButton { background: #000000; color: #999; font-size: 16px; border: none; border-radius: 3px; } QPushButton:hover { background: #222222; color: #fff; }")
         header_layout.addWidget(self.btn_hide)
 
         layout.addLayout(header_layout)
@@ -471,6 +472,30 @@ class TimerWidget(QWidget):
         self.cost_label.setFont(cost_font)
         self.cost_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.cost_label)
+
+        # Кнопка завершения сессии (только для безлимитных сессий)
+        if self.is_unlimited:
+            self.btn_end_session = QPushButton("⏹️ Завершить сессию")
+            self.btn_end_session.setMinimumHeight(30)
+            self.btn_end_session.clicked.connect(self.request_session_stop)
+            self.btn_end_session.setStyleSheet("""
+                QPushButton {
+                    background-color: #d32f2f;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    font-size: 10px;
+                    font-weight: bold;
+                    padding: 5px;
+                }
+                QPushButton:hover {
+                    background-color: #b71c1c;
+                }
+                QPushButton:pressed {
+                    background-color: #8b0000;
+                }
+            """)
+            layout.addWidget(self.btn_end_session)
 
         self.setLayout(layout)
 
@@ -637,6 +662,24 @@ class TimerWidget(QWidget):
         """Остановить таймер"""
         self.update_timer.stop()
 
+    def request_session_stop(self):
+        """Запросить остановку сессии (для безлимитных сессий)"""
+        logger.info("User requested to stop unlimited session")
+        
+        # Показываем диалог подтверждения
+        reply = QMessageBox.question(
+            self, 
+            "Завершить сессию",
+            "Вы уверены, что хотите завершить сессию?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            logger.info("User confirmed session stop request")
+            self.session_stop_requested.emit()
+        else:
+            logger.info("User cancelled session stop request")
+
     def update_session_time(self, new_duration_minutes: int):
         """Обновить время сессии (вызывается при изменении админом)"""
         logger.info(f"Updating session time to {new_duration_minutes} minutes")
@@ -778,6 +821,10 @@ class MainClientWindow(QMainWindow):
             self.timer_widget.session_finished.connect(self.on_timer_finished)
             logger.info("[MainWindow] Signal connected to on_timer_finished")
 
+            # Подключаем сигнал запроса остановки сессии
+            self.timer_widget.session_stop_requested.connect(self.on_session_stop_requested)
+            logger.info("[MainWindow] Signal connected to on_session_stop_requested")
+
             # Устанавливаем callback для получения remaining_seconds
             if self.client_thread.client:
                 try:
@@ -816,6 +863,24 @@ class MainClientWindow(QMainWindow):
         # Показываем полноэкранную блокировку с конфигом
         self.lock_screen = LockScreen(self.current_session_data, self.config)
         self.lock_screen.show()
+
+    def on_session_stop_requested(self):
+        """Обработка запроса остановки сессии от пользователя"""
+        logger.info("User requested session stop - sending request to server")
+        
+        # Отправляем запрос на сервер через WebSocket клиент
+        if self.client_thread.client:
+            # Нужно вызвать асинхронную функцию из синхронного контекста
+            # Используем asyncio для запуска задачи в event loop клиента
+            if self.client_thread.loop:
+                asyncio.run_coroutine_threadsafe(
+                    self.client_thread.client.request_session_stop(),
+                    self.client_thread.loop
+                )
+            else:
+                logger.error("Client event loop not available")
+        else:
+            logger.error("WebSocket client not available")
 
     def on_session_stopped(self, data: dict):
         """Обработка остановки сессии (команда от сервера)"""
