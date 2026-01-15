@@ -239,10 +239,23 @@ class SessionDialog(QDialog):
         # Подключение сигналов
         self.btn_30min.clicked.connect(lambda: self.set_time(0, 30))
         self.btn_unlimited.clicked.connect(self.set_unlimited)
-        self.btn_ok.clicked.connect(self.accept)
+        self.btn_ok.clicked.connect(self.validate_and_accept)
         self.btn_cancel.clicked.connect(self.reject)
 
         self.is_unlimited = False
+    
+    def validate_and_accept(self):
+        """Валидация перед созданием сессии"""
+        if not self.is_unlimited:
+            total_minutes = self.hours_spin.value() * 60 + self.minutes_spin.value()
+            if total_minutes == 0:
+                QMessageBox.warning(
+                    self,
+                    "Ошибка",
+                    "Укажите длительность сессии или выберите безлимитный режим"
+                )
+                return
+        self.accept()
 
     def set_time(self, hours: int, minutes: int):
         """Установить время"""

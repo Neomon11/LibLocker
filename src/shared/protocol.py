@@ -70,6 +70,8 @@ class SessionStartMessage:
 class SessionStopMessage:
     """Сообщение окончания сессии"""
     reason: str = "manual"  # manual, timeout, error
+    actual_duration: int = 0  # Фактическая длительность в минутах
+    cost: float = 0.0  # Итоговая стоимость
 
     def to_message(self) -> Message:
         return Message(

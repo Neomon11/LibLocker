@@ -286,14 +286,11 @@ class LibLockerServer:
             logger.error(f"Client {client_id} not connected")
             return False
 
-        # Отправляем команду остановки
-        from ..shared.protocol import SessionStopMessage
-
-        stop_msg = SessionStopMessage(reason='manual')
-        await self.sio.emit('message', stop_msg.to_message().to_dict(), room=client_sid)
-
-        # Завершаем активную сессию в БД
+        # Сначала завершаем активную сессию в БД и рассчитываем стоимость
         db_session = self.db.get_session()
+        actual_duration = 0
+        final_cost = 0.0
+        
         try:
             active_session = db_session.query(SessionModel).filter_by(
                 client_id=client_id,
@@ -306,6 +303,7 @@ class LibLockerServer:
                 # Расчет фактической длительности
                 duration = (active_session.end_time - active_session.start_time).total_seconds() / 60
                 active_session.actual_duration = int(duration)
+                actual_duration = active_session.actual_duration
                 
                 # Расчет стоимости сессии
                 if not active_session.free_mode and active_session.cost_per_hour > 0:
@@ -327,16 +325,28 @@ class LibLockerServer:
                     active_session.cost = 0.0
                     logger.info(f"Session is free (free_mode={active_session.free_mode})")
                 
+                final_cost = active_session.cost
                 db_session.commit()
                 logger.info(f"Session {active_session.id} stopped")
 
-            return True
         except Exception as e:
             logger.error(f"Error stopping session: {e}")
             db_session.rollback()
             return False
         finally:
             db_session.close()
+
+        # Теперь отправляем команду остановки с итоговыми данными
+        from ..shared.protocol import SessionStopMessage
+
+        stop_msg = SessionStopMessage(
+            reason='manual',
+            actual_duration=actual_duration,
+            cost=final_cost
+        )
+        await self.sio.emit('message', stop_msg.to_message().to_dict(), room=client_sid)
+
+        return True
 
     async def update_session_time(self, client_id: int, new_duration_minutes: int) -> bool:
         """Обновить время сессии для клиента"""
