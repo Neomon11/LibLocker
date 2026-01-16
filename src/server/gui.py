@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 # Constants
 MIN_PASSWORD_LENGTH = 8
 RECOMMENDED_PASSWORD_LENGTH = 8
+ASYNC_OPERATION_TIMEOUT = 5.0  # Timeout in seconds for async operations
 
 # Button styles
 BUTTON_STYLE_PRIMARY = """
@@ -939,6 +940,42 @@ class MainWindow(QMainWindow):
 
         return widget
 
+    def _execute_async_command(self, coroutine, success_message: str, error_prefix: str = "Не удалось выполнить команду") -> bool:
+        """
+        Выполнить асинхронную команду и дождаться результата
+        
+        Args:
+            coroutine: Корутина для выполнения
+            success_message: Сообщение при успехе
+            error_prefix: Префикс сообщения об ошибке
+            
+        Returns:
+            bool: True если операция успешна, False иначе
+        """
+        try:
+            future = asyncio.run_coroutine_threadsafe(coroutine, self.server_thread.loop)
+            result = future.result(timeout=ASYNC_OPERATION_TIMEOUT)
+            
+            if result:
+                QMessageBox.information(self, "Успех", success_message)
+                return True
+            else:
+                QMessageBox.warning(
+                    self, "Ошибка", 
+                    f"{error_prefix}.\nКлиент не подключен или произошла ошибка."
+                )
+                return False
+        except TimeoutError:
+            QMessageBox.warning(
+                self, "Ошибка", 
+                f"Время ожидания истекло при выполнении операции"
+            )
+            return False
+        except Exception as e:
+            logger.error(f"Error executing async command: {e}", exc_info=True)
+            QMessageBox.critical(self, "Ошибка", f"{error_prefix}:\n{str(e)}")
+            return False
+
     def start_server(self):
         """Запуск WebSocket сервера"""
         self.server_thread = ServerThread(self.server)
@@ -1150,14 +1187,13 @@ class MainWindow(QMainWindow):
             hourly_rate = self.hourly_rate_spin.value()
 
             # Запускаем сессию через asyncio
-            asyncio.run_coroutine_threadsafe(
+            self._execute_async_command(
                 self.server.start_session(
                     client_id, duration, is_unlimited, hourly_rate, free_mode
                 ),
-                self.server_thread.loop
+                success_message="Сессия начата",
+                error_prefix="Не удалось начать сессию"
             )
-
-            QMessageBox.information(self, "Успех", "Сессия начата")
 
     def edit_session_time(self):
         """Изменить время активной сессии"""
@@ -1203,12 +1239,11 @@ class MainWindow(QMainWindow):
                     return
                 
                 # Обновляем время сессии
-                asyncio.run_coroutine_threadsafe(
+                self._execute_async_command(
                     self.server.update_session_time(client_id, duration),
-                    self.server_thread.loop
+                    success_message=f"Время сессии изменено на {duration} минут",
+                    error_prefix="Не удалось изменить время сессии"
                 )
-                
-                QMessageBox.information(self, "Успех", f"Время сессии изменено на {duration} минут")
                 
         except Exception as e:
             logger.error(f"Error editing session time: {e}")
@@ -1227,12 +1262,11 @@ class MainWindow(QMainWindow):
         client_id = int(self.clients_table.item(row, 0).text())
 
         # Останавливаем сессию
-        asyncio.run_coroutine_threadsafe(
+        self._execute_async_command(
             self.server.stop_session(client_id),
-            self.server_thread.loop
+            success_message="Сессия остановлена",
+            error_prefix="Не удалось остановить сессию"
         )
-
-        QMessageBox.information(self, "Успех", "Сессия остановлена")
 
     def shutdown_client(self):
         """Выключить компьютер клиента"""
@@ -1251,11 +1285,11 @@ class MainWindow(QMainWindow):
         )
 
         if reply == QMessageBox.StandardButton.Yes:
-            asyncio.run_coroutine_threadsafe(
+            self._execute_async_command(
                 self.server.shutdown_client(client_id),
-                self.server_thread.loop
+                success_message="Команда выключения отправлена",
+                error_prefix="Не удалось отправить команду выключения"
             )
-            QMessageBox.information(self, "Успех", "Команда выключения отправлена")
 
     def save_settings(self):
         """Сохранить настройки"""
