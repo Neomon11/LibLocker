@@ -55,3 +55,4 @@ config.local.ini
 *.msi
 *.spec
 
+config.client.ini.backup
