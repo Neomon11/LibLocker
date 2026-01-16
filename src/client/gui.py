@@ -724,7 +724,8 @@ class TimerWidget(QWidget):
         now = datetime.now()
         self.end_time = now + timedelta(minutes=new_duration_minutes)
         self.total_seconds = new_duration_minutes * 60
-        self.remaining_seconds = new_duration_minutes * 60
+        # Calculate remaining_seconds from actual time difference for precision
+        self.remaining_seconds = int((self.end_time - now).total_seconds())
         
         logger.info(f"Session time updated: end_time={self.end_time}, remaining_seconds={self.remaining_seconds}")
         
