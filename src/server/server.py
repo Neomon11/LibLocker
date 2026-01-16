@@ -297,6 +297,19 @@ class LibLockerServer:
             await self.sio.emit('message', message_dict, room=client_sid)
 
             logger.info(f"Session {session_id} started for client {client_id}")
+            
+            # Автоматически включаем мониторинг установки если это настроено в конфиге
+            if self.config.installation_monitor_enabled:
+                logger.info(f"Auto-enabling installation monitor for client {client_id} (server config)")
+                try:
+                    await self.toggle_installation_monitor(
+                        client_id, 
+                        enabled=True, 
+                        alert_volume=self.config.installation_monitor_alert_volume
+                    )
+                except Exception as e:
+                    logger.error(f"Error auto-enabling installation monitor: {e}", exc_info=True)
+            
             return True
 
         except Exception as e:
@@ -479,7 +492,7 @@ class LibLockerServer:
             except Exception as e:
                 logger.error(f"Error sending password update to {sid}: {e}")
 
-    async def toggle_installation_monitor(self, client_id: int, enabled: bool) -> bool:
+    async def toggle_installation_monitor(self, client_id: int, enabled: bool, alert_volume: int = None) -> bool:
         """Включить/выключить мониторинг установки для клиента"""
         logger.info(f"Toggling installation monitor for client {client_id}: enabled={enabled}")
 
@@ -494,10 +507,11 @@ class LibLockerServer:
             logger.error(f"Client {client_id} not connected")
             return False
 
-        # Получаем настройки из конфигурации сервера
-        alert_volume = 80  # Значение по умолчанию
-        if self.config:
-            alert_volume = self.config.installation_monitor_alert_volume
+        # Используем переданную громкость или берем из конфигурации сервера
+        if alert_volume is None:
+            alert_volume = 80  # Значение по умолчанию
+            if self.config:
+                alert_volume = self.config.installation_monitor_alert_volume
 
         # Отправляем команду клиенту с настройками с сервера
         from ..shared.protocol import InstallationMonitorToggleMessage

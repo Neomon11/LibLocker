@@ -68,6 +68,11 @@ def get_russian_plural(number: int, form1: str, form2: str, form5: str) -> str:
     return form5
 
 
+class InstallationMonitorSignals(QWidget):
+    """Signal wrapper for InstallationMonitor to ensure thread-safe callbacks"""
+    installation_detected = pyqtSignal(str)  # reason
+
+
 class ClientThread(QThread):
     """Поток для WebSocket клиента"""
 
@@ -797,10 +802,15 @@ class MainClientWindow(QMainWindow):
         self.current_session_data = None
         self.red_alert_screen = None
         
-        # Installation monitor
+        # Installation monitor with thread-safe signal wrapper
+        self.installation_monitor_signals = InstallationMonitorSignals()
+        self.installation_monitor_signals.installation_detected.connect(
+            self.on_installation_detected, Qt.ConnectionType.QueuedConnection
+        )
+        
         from .installation_monitor import InstallationMonitor
         self.installation_monitor = InstallationMonitor(
-            on_installation_detected=self.on_installation_detected
+            signal_emitter=self.installation_monitor_signals
         )
 
         # WebSocket клиент

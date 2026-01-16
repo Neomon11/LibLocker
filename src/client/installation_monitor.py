@@ -43,14 +43,16 @@ class InstallationMonitor:
         Path.home() / "Рабочий стол"
     ]
     
-    def __init__(self, on_installation_detected: Optional[Callable] = None):
+    def __init__(self, on_installation_detected: Optional[Callable] = None, signal_emitter=None):
         """
         Инициализация монитора
         
         Args:
-            on_installation_detected: Callback при обнаружении установки
+            on_installation_detected: Callback при обнаружении установки (deprecated - use signal_emitter)
+            signal_emitter: Qt signal emitter for thread-safe callbacks (InstallationMonitorSignals)
         """
         self.on_installation_detected = on_installation_detected
+        self.signal_emitter = signal_emitter
         self.enabled = False
         self.monitoring_thread: Optional[Thread] = None
         self.stop_event = Event()
@@ -221,7 +223,16 @@ class InstallationMonitor:
         """
         logger.critical(f"INSTALLATION DETECTED: {reason}")
         
-        if self.on_installation_detected:
+        # Используем Qt signal для thread-safe вызова (приоритет)
+        if self.signal_emitter:
+            try:
+                # Emit signal - Qt automatically marshals to main thread
+                self.signal_emitter.installation_detected.emit(reason)
+                logger.info("Installation alert signal emitted successfully")
+            except Exception as e:
+                logger.error(f"Error emitting installation detected signal: {e}", exc_info=True)
+        # Fallback на старый callback (может быть небезопасно для Qt)
+        elif self.on_installation_detected:
             try:
                 self.on_installation_detected(reason)
             except Exception as e:
