@@ -77,7 +77,7 @@ class ClientThread(QThread):
     password_updated = pyqtSignal(dict)
     shutdown_requested = pyqtSignal()
     connected_to_server = pyqtSignal()
-    installation_monitor_toggle = pyqtSignal(bool)
+    installation_monitor_toggle = pyqtSignal(bool, int)  # enabled, alert_volume
 
     def __init__(self, server_url: str):
         super().__init__()
@@ -123,9 +123,9 @@ class ClientThread(QThread):
             logger.info(f"[ClientThread] Emitting connected_to_server signal")
             self.connected_to_server.emit()
 
-        def emit_installation_monitor_toggle(enabled: bool):
-            logger.info(f"[ClientThread] Emitting installation_monitor_toggle signal: {enabled}")
-            self.installation_monitor_toggle.emit(enabled)
+        def emit_installation_monitor_toggle(enabled: bool, alert_volume: int = 80):
+            logger.info(f"[ClientThread] Emitting installation_monitor_toggle signal: enabled={enabled}, volume={alert_volume}")
+            self.installation_monitor_toggle.emit(enabled, alert_volume)
 
         self.client.on_session_start = emit_session_started
         self.client.on_session_stop = emit_session_stopped
@@ -1108,12 +1108,13 @@ class MainClientWindow(QMainWindow):
         self.connection_label.setText("✅ Подключено к серверу")
         self.connection_label.setStyleSheet("color: green;")
 
-    def on_installation_monitor_toggle(self, enabled: bool):
+    def on_installation_monitor_toggle(self, enabled: bool, alert_volume: int = 80):
         """Обработка команды переключения мониторинга установки от сервера"""
-        logger.info(f"Installation monitor toggle received from server: {enabled}")
+        logger.info(f"Installation monitor toggle received from server: enabled={enabled}, volume={alert_volume}")
         
-        # Сохраняем в конфиг
+        # Сохраняем настройки в конфиг
         self.config.installation_monitor_enabled = enabled
+        self.config.alert_volume = alert_volume
         self.config.save()
         
         # Запускаем или останавливаем мониторинг

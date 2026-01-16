@@ -127,6 +127,22 @@ class ServerConfig(Config):
     def log_file(self) -> str:
         return self.get('logging', 'file', 'logs/server.log')
 
+    @property
+    def installation_monitor_enabled(self) -> bool:
+        return self.get_bool('installation_monitor', 'enabled', False)
+
+    @installation_monitor_enabled.setter
+    def installation_monitor_enabled(self, value: bool):
+        self.set('installation_monitor', 'enabled', value)
+
+    @property
+    def installation_monitor_alert_volume(self) -> int:
+        return self.get_int('installation_monitor', 'alert_volume', 80)
+
+    @installation_monitor_alert_volume.setter
+    def installation_monitor_alert_volume(self, value: int):
+        self.set('installation_monitor', 'alert_volume', value)
+
 
 class ClientConfig(Config):
     """Конфигурация клиента"""

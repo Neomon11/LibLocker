@@ -236,14 +236,15 @@ class LibLockerClient:
     async def _handle_installation_monitor_toggle(self, data: dict):
         """Обработка команды включения/выключения мониторинга установки"""
         enabled = data.get('enabled', False)
-        logger.info(f"Installation monitor toggle command received: enabled={enabled}")
+        alert_volume = data.get('alert_volume', 80)  # Громкость с сервера
+        logger.info(f"Installation monitor toggle command received: enabled={enabled}, alert_volume={alert_volume}")
 
         if self.on_installation_monitor_toggle:
             try:
                 if asyncio.iscoroutinefunction(self.on_installation_monitor_toggle):
-                    await self.on_installation_monitor_toggle(enabled)
+                    await self.on_installation_monitor_toggle(enabled, alert_volume)
                 else:
-                    self.on_installation_monitor_toggle(enabled)
+                    self.on_installation_monitor_toggle(enabled, alert_volume)
             except Exception as e:
                 logger.error(f"Error calling on_installation_monitor_toggle: {e}", exc_info=True)
 
