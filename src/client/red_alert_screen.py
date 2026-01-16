@@ -10,13 +10,14 @@ from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QLabel
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QColor, QPalette
 
+logger = logging.getLogger(__name__)
+
 try:
     from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
     from PyQt6.QtCore import QUrl
     MULTIMEDIA_AVAILABLE = True
 except ImportError:
     MULTIMEDIA_AVAILABLE = False
-    logger = logging.getLogger(__name__)
     logger.warning("PyQt6.QtMultimedia not available, audio will not play")
 
 # Windows-specific imports for volume control
@@ -25,8 +26,6 @@ try:
     WINSOUND_AVAILABLE = True
 except ImportError:
     WINSOUND_AVAILABLE = False
-
-logger = logging.getLogger(__name__)
 
 # Встроенный аудио-файл сирены (base64 для встраивания в программу)
 SIREN_AUDIO_BASE64 = None  # Будет загружен при первом использовании
@@ -201,8 +200,8 @@ class RedAlertLockScreen(QMainWindow):
         """Запуск воспроизведения сирены"""
         try:
             # Устанавливаем системную громкость (Windows)
-            try:
-                if sys.platform == 'win32':
+            if sys.platform == 'win32':
+                try:
                     from ctypes import cast, POINTER
                     from comtypes import CLSCTX_ALL
                     from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
@@ -214,8 +213,8 @@ class RedAlertLockScreen(QMainWindow):
                     # Устанавливаем системную громкость
                     volume.SetMasterVolumeLevelScalar(self.alert_volume / 100.0, None)
                     logger.info(f"System volume set to {self.alert_volume}%")
-            except Exception as e:
-                logger.warning(f"Could not set system volume: {e}")
+                except Exception as e:
+                    logger.warning(f"Could not set system volume: {e}")
             
             # Воспроизводим звук
             if MULTIMEDIA_AVAILABLE and self.media_player:

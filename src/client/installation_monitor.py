@@ -3,6 +3,7 @@
 Отслеживает запуск установщиков и скачивание установочных файлов
 """
 import os
+import sys
 import time
 import logging
 import psutil
@@ -17,8 +18,14 @@ logger = logging.getLogger(__name__)
 class InstallationMonitor:
     """Мониторинг установки программ и скачивания установочных файлов"""
     
-    # Расширения установочных файлов
-    INSTALLER_EXTENSIONS = {'.exe', '.msi', '.bat', '.cmd', '.ps1', '.vbs', '.jar', '.dmg', '.pkg', '.deb', '.rpm'}
+    # Расширения установочных файлов (зависят от платформы)
+    INSTALLER_EXTENSIONS = {'.exe', '.msi', '.bat', '.cmd', '.ps1', '.vbs', '.jar'}
+    
+    # Добавляем специфичные расширения для других платформ
+    if sys.platform == 'darwin':  # macOS
+        INSTALLER_EXTENSIONS.update({'.dmg', '.pkg'})
+    elif sys.platform.startswith('linux'):  # Linux
+        INSTALLER_EXTENSIONS.update({'.deb', '.rpm', '.sh'})
     
     # Процессы установщиков (имена)
     INSTALLER_PROCESSES = {
