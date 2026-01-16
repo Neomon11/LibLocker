@@ -271,6 +271,22 @@ class LibLockerClient:
         await self.sio.emit('message', stop_request_msg.to_message().to_dict())
         logger.info("Session stop request sent to server")
 
+    async def send_installation_alert(self, reason: str):
+        """Отправка уведомления об обнаружении установки на сервер"""
+        if not self.connected:
+            logger.warning("Cannot send installation alert: not connected to server")
+            return
+
+        from ..shared.protocol import InstallationAlertMessage
+        from datetime import datetime
+        
+        alert_msg = InstallationAlertMessage(
+            reason=reason,
+            timestamp=datetime.now().isoformat()
+        )
+        await self.sio.emit('message', alert_msg.to_message().to_dict())
+        logger.info(f"Installation alert sent to server: {reason}")
+
     async def connect(self):
         """Подключение к серверу"""
         try:
