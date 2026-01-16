@@ -1151,10 +1151,14 @@ class MainClientWindow(QMainWindow):
                 try:
                     future.result(timeout=0.5)
                     logger.info("Installation alert sent successfully")
+                except TimeoutError:
+                    # Таймаут - отправка все еще может быть в процессе
+                    logger.warning("Installation alert send timed out after 0.5s (may still be sending in background)")
                 except Exception as e:
-                    logger.warning(f"Could not confirm alert send (may still be sending): {e}")
+                    # Реальная ошибка отправки
+                    logger.error(f"Failed to send installation alert: {e}", exc_info=True)
             except Exception as e:
-                logger.error(f"Failed to send installation alert to server: {e}", exc_info=True)
+                logger.error(f"Failed to schedule installation alert send: {e}", exc_info=True)
         else:
             logger.warning("Cannot send installation alert - client not available")
         

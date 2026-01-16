@@ -11,6 +11,7 @@ import os
 import time
 import asyncio
 import tempfile
+import uuid
 from pathlib import Path
 from unittest.mock import Mock, AsyncMock, MagicMock
 from contextlib import contextmanager
@@ -25,7 +26,8 @@ from src.shared.protocol import InstallationAlertMessage, MessageType
 @contextmanager
 def create_test_installer_file(downloads_path):
     """Context manager для создания и автоматического удаления тестового файла"""
-    test_file = downloads_path / f"test_installer_{int(time.time() * 1000)}.exe"
+    # Используем uuid для гарантии уникальности
+    test_file = downloads_path / f"test_installer_{uuid.uuid4().hex[:12]}.exe"
     try:
         with open(test_file, 'wb') as f:
             f.write(b"Test installer file")
