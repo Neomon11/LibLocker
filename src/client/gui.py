@@ -79,6 +79,7 @@ class ClientThread(QThread):
     session_started = pyqtSignal(dict)
     session_stopped = pyqtSignal(dict)
     session_time_updated = pyqtSignal(dict)
+    session_tariff_updated = pyqtSignal(dict)
     password_updated = pyqtSignal(dict)
     shutdown_requested = pyqtSignal()
     unlock_requested = pyqtSignal()  # Сигнал разблокировки от сервера
@@ -137,9 +138,14 @@ class ClientThread(QThread):
             logger.info(f"[ClientThread] Emitting installation_monitor_toggle signal: enabled={enabled}, volume={alert_volume}")
             self.installation_monitor_toggle.emit(enabled, alert_volume)
 
+        def emit_session_tariff_updated(data):
+            logger.info(f"[ClientThread] Emitting session_tariff_updated signal")
+            self.session_tariff_updated.emit(data)
+
         self.client.on_session_start = emit_session_started
         self.client.on_session_stop = emit_session_stopped
         self.client.on_session_time_update = emit_session_time_updated
+        self.client.on_session_tariff_update = emit_session_tariff_updated
         self.client.on_password_update = emit_password_updated
         self.client.on_shutdown = emit_shutdown
         self.client.on_unlock = emit_unlock
@@ -714,17 +720,13 @@ class TimerWidget(QWidget):
             logger.warning("Cannot update time for unlimited session")
             return
         
-        # Обновляем время окончания
-        self.end_time = self.start_time + timedelta(minutes=new_duration_minutes)
-        self.total_seconds = new_duration_minutes * 60
-        
-        # Пересчитываем remaining_seconds
+        # Обновляем время окончания от текущего момента
         now = datetime.now()
-        if now >= self.end_time:
-            self.remaining_seconds = 0
-        else:
-            remaining = self.end_time - now
-            self.remaining_seconds = int(remaining.total_seconds())
+        self.end_time = now + timedelta(minutes=new_duration_minutes)
+        self.total_seconds = new_duration_minutes * 60
+        self.remaining_seconds = new_duration_minutes * 60
+        
+        logger.info(f"Session time updated: end_time={self.end_time}, remaining_seconds={self.remaining_seconds}")
         
         # Recalculate warning time for the new duration
         self.warning_minutes = self._calculate_warning_time(new_duration_minutes)
@@ -757,6 +759,40 @@ class TimerWidget(QWidget):
         
         # Show notification after a short delay to avoid blocking
         QTimer.singleShot(100, show_time_change_notification)
+
+    def update_session_tariff(self, free_mode: bool, cost_per_hour: float):
+        """Обновить тарификацию сессии (вызывается при изменении админом)"""
+        logger.info(f"Updating session tariff: free_mode={free_mode}, cost_per_hour={cost_per_hour}")
+        
+        # Обновляем настройки тарификации
+        self.free_mode = free_mode
+        self.cost_per_hour = cost_per_hour
+        
+        # Обновляем данные сессии
+        if self.session_data:
+            self.session_data['free_mode'] = free_mode
+            self.session_data['cost_per_hour'] = cost_per_hour
+        
+        # Обновляем отображение стоимости
+        self.update_display()
+        
+        # Показываем уведомление о изменении тарификации (non-blocking)
+        def show_tariff_change_notification():
+            from PyQt6.QtWidgets import QMessageBox
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Information)
+            msg.setWindowTitle("LibLocker - Изменение тарификации")
+            if free_mode:
+                msg.setText(f"💰 Администратор изменил тарификацию сессии\n\nСессия стала бесплатной")
+            else:
+                msg.setText(f"💰 Администратор изменил тарификацию сессии\n\nНовая ставка: {cost_per_hour:.2f} руб./час")
+            msg.setInformativeText("Тарификация сессии была обновлена.")
+            msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+            msg.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Dialog)
+            msg.exec()
+        
+        # Show notification after a short delay to avoid blocking
+        QTimer.singleShot(100, show_tariff_change_notification)
 
     def contextMenuEvent(self, event):
         """Обработка правого клика для показа контекстного меню"""
@@ -830,6 +866,9 @@ class MainClientWindow(QMainWindow):
         )
         self.client_thread.session_time_updated.connect(
             self.on_session_time_updated, Qt.ConnectionType.QueuedConnection
+        )
+        self.client_thread.session_tariff_updated.connect(
+            self.on_session_tariff_updated, Qt.ConnectionType.QueuedConnection
         )
         self.client_thread.password_updated.connect(
             self.on_password_updated, Qt.ConnectionType.QueuedConnection
@@ -1177,6 +1216,21 @@ class MainClientWindow(QMainWindow):
             # Обновляем данные сессии
             if self.current_session_data:
                 self.current_session_data['duration_minutes'] = new_duration_minutes
+
+    def on_session_tariff_updated(self, data: dict):
+        """Обработка обновления тарификации сессии"""
+        logger.info(f"Session tariff updated: {data}")
+        
+        # Обновляем виджет таймера если активен
+        if self.timer_widget:
+            free_mode = data.get('free_mode', True)
+            cost_per_hour = data.get('cost_per_hour', 0.0)
+            self.timer_widget.update_session_tariff(free_mode, cost_per_hour)
+            
+            # Обновляем данные сессии
+            if self.current_session_data:
+                self.current_session_data['free_mode'] = free_mode
+                self.current_session_data['cost_per_hour'] = cost_per_hour
 
     def on_password_updated(self, data: dict):
         """Обработка обновления пароля администратора"""

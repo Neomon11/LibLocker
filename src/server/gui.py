@@ -1270,6 +1270,80 @@ class MainWindow(QMainWindow):
         finally:
             db_session.close()
 
+    def edit_session_tariff(self):
+        """Изменить тарификацию активной сессии"""
+        selected_rows = self.clients_table.selectedItems()
+        if not selected_rows:
+            QMessageBox.warning(self, "Ошибка", "Выберите клиента")
+            return
+
+        row = selected_rows[0].row()
+        client_id = int(self.clients_table.item(row, 0).text())
+        
+        # Проверяем, есть ли активная сессия
+        db_session = self.db.get_session()
+        try:
+            active_session = db_session.query(SessionModel).filter_by(
+                client_id=client_id,
+                status='active'
+            ).first()
+            
+            if not active_session:
+                QMessageBox.warning(self, "Ошибка", "У выбранного клиента нет активной сессии")
+                return
+            
+            # Создаем диалог для изменения тарификации
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Изменить тарификацию сессии")
+            layout = QFormLayout(dialog)
+            
+            # Чекбокс бесплатного режима
+            free_mode_check = QCheckBox("Бесплатная сессия")
+            free_mode_check.setChecked(active_session.free_mode)
+            layout.addRow("Режим:", free_mode_check)
+            
+            # Поле для стоимости
+            cost_spin = QDoubleSpinBox()
+            cost_spin.setRange(0, 10000)
+            cost_spin.setSingleStep(10)
+            cost_spin.setValue(active_session.cost_per_hour)
+            cost_spin.setSuffix(" руб./час")
+            cost_spin.setEnabled(not active_session.free_mode)
+            layout.addRow("Стоимость:", cost_spin)
+            
+            # Связываем чекбокс и поле стоимости
+            def on_free_mode_changed(state):
+                cost_spin.setEnabled(not free_mode_check.isChecked())
+            
+            free_mode_check.stateChanged.connect(on_free_mode_changed)
+            
+            # Кнопки
+            buttons = QHBoxLayout()
+            btn_ok = QPushButton("OK")
+            btn_cancel = QPushButton("Отмена")
+            btn_ok.clicked.connect(dialog.accept)
+            btn_cancel.clicked.connect(dialog.reject)
+            buttons.addWidget(btn_ok)
+            buttons.addWidget(btn_cancel)
+            layout.addRow(buttons)
+            
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                free_mode = free_mode_check.isChecked()
+                cost_per_hour = 0.0 if free_mode else cost_spin.value()
+                
+                # Обновляем тарификацию сессии
+                self._execute_async_command(
+                    self.server.update_session_tariff(client_id, free_mode, cost_per_hour),
+                    success_message=f"Тарификация сессии изменена: {'бесплатно' if free_mode else f'{cost_per_hour} руб./час'}",
+                    error_prefix="Не удалось изменить тарификацию сессии"
+                )
+                
+        except Exception as e:
+            logger.error(f"Error editing session tariff: {e}")
+            QMessageBox.critical(self, "Ошибка", f"Не удалось изменить тарификацию сессии:\n{str(e)}")
+        finally:
+            db_session.close()
+
     def stop_session(self):
         """Остановить сессию для выбранного клиента"""
         selected_rows = self.clients_table.selectedItems()
@@ -1358,6 +1432,11 @@ class MainWindow(QMainWindow):
         edit_time_action = QAction("⏱️ Изменить время сессии", self)
         edit_time_action.triggered.connect(self.edit_session_time)
         menu.addAction(edit_time_action)
+        
+        # Действие: Изменить тарификацию сессии
+        edit_tariff_action = QAction("💰 Изменить тарификацию сессии", self)
+        edit_tariff_action.triggered.connect(self.edit_session_tariff)
+        menu.addAction(edit_tariff_action)
         
         # Действие: Включить/выключить мониторинг
         monitor_action = QAction("🔍 Переключить мониторинг установки", self)

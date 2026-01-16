@@ -48,6 +48,7 @@ class LibLockerClient:
         self.on_session_start: Optional[Callable] = None
         self.on_session_stop: Optional[Callable] = None
         self.on_session_time_update: Optional[Callable] = None
+        self.on_session_tariff_update: Optional[Callable] = None
         self.on_password_update: Optional[Callable] = None
         self.on_shutdown: Optional[Callable] = None
         self.on_unlock: Optional[Callable] = None
@@ -129,6 +130,8 @@ class LibLockerClient:
             await self._handle_session_stop(msg.data)
         elif msg_type == MessageType.SESSION_TIME_UPDATE.value:
             await self._handle_session_time_update(msg.data)
+        elif msg_type == MessageType.SESSION_TARIFF_UPDATE.value:
+            await self._handle_session_tariff_update(msg.data)
         elif msg_type == MessageType.PASSWORD_UPDATE.value:
             await self._handle_password_update(msg.data)
         elif msg_type == MessageType.SHUTDOWN.value:
@@ -193,6 +196,19 @@ class LibLockerClient:
                     self.on_session_time_update(data)
             except Exception as e:
                 logger.error(f"Error calling on_session_time_update: {e}", exc_info=True)
+
+    async def _handle_session_tariff_update(self, data: dict):
+        """Обработка команды обновления тарификации сессии"""
+        logger.info(f"Session tariff update command received: {data}")
+
+        if self.on_session_tariff_update:
+            try:
+                if asyncio.iscoroutinefunction(self.on_session_tariff_update):
+                    await self.on_session_tariff_update(data)
+                else:
+                    self.on_session_tariff_update(data)
+            except Exception as e:
+                logger.error(f"Error calling on_session_tariff_update: {e}", exc_info=True)
 
     async def _handle_password_update(self, data: dict):
         """Обработка команды обновления пароля администратора"""
