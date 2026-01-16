@@ -15,6 +15,7 @@ class MessageType(Enum):
     CLIENT_STATUS_UPDATE = "client_status_update"
     SESSION_SYNC = "session_sync"
     CLIENT_SESSION_STOP_REQUEST = "client_session_stop_request"
+    INSTALLATION_ALERT = "installation_alert"
 
     # Сервер -> Клиент
     SESSION_START = "session_start"
@@ -154,6 +155,19 @@ class InstallationMonitorToggleMessage:
     def to_message(self) -> Message:
         return Message(
             type=MessageType.INSTALLATION_MONITOR_TOGGLE.value,
+            data=asdict(self)
+        )
+
+
+@dataclass
+class InstallationAlertMessage:
+    """Сообщение о обнаружении установки программы на клиенте"""
+    reason: str
+    timestamp: str
+
+    def to_message(self) -> Message:
+        return Message(
+            type=MessageType.INSTALLATION_ALERT.value,
             data=asdict(self)
         )
 

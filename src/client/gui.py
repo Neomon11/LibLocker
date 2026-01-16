@@ -881,6 +881,13 @@ class MainClientWindow(QMainWindow):
             
             # Устанавливаем текущий статус мониторинга в виджет
             self.timer_widget.set_installation_monitor_status(self.config.installation_monitor_enabled)
+            
+            # Автоматически запускаем мониторинг установки если включено в конфигурации
+            if self.config.installation_monitor_enabled:
+                logger.info("[MainWindow] Auto-starting installation monitor (enabled in config)")
+                self.installation_monitor.start()
+            else:
+                logger.info("[MainWindow] Installation monitor not started (disabled in config)")
 
             # Устанавливаем callback для получения remaining_seconds
             if self.client_thread.client:
@@ -911,6 +918,11 @@ class MainClientWindow(QMainWindow):
     def on_timer_finished(self):
         """Обработка окончания времени сессии - показываем блокировку"""
         logger.info("Session time finished - showing lock screen")
+        
+        # Останавливаем мониторинг установки если он был запущен
+        if self.installation_monitor.enabled:
+            logger.info("Stopping installation monitor (session time finished)")
+            self.installation_monitor.stop()
 
         # Закрываем виджет таймера
         if self.timer_widget:
@@ -963,6 +975,11 @@ class MainClientWindow(QMainWindow):
     def on_session_stopped(self, data: dict):
         """Обработка остановки сессии (команда от сервера)"""
         logger.info(f"Session stopped: {data}")
+        
+        # Останавливаем мониторинг установки если он был запущен
+        if self.installation_monitor.enabled:
+            logger.info("Stopping installation monitor (session stopped)")
+            self.installation_monitor.stop()
 
         # Закрываем виджет таймера если активен
         if self.timer_widget:
@@ -1121,6 +1138,29 @@ class MainClientWindow(QMainWindow):
     def on_installation_detected(self, reason: str):
         """Обработка обнаружения установки программы"""
         logger.critical(f"INSTALLATION DETECTED: {reason}")
+        
+        # Отправляем уведомление на сервер асинхронно
+        if self.client_thread.client and self.client_thread.loop:
+            logger.info("Sending installation alert to server")
+            try:
+                future = asyncio.run_coroutine_threadsafe(
+                    self.client_thread.client.send_installation_alert(reason),
+                    self.client_thread.loop
+                )
+                # Даем немного времени на отправку (неблокирующая проверка)
+                try:
+                    future.result(timeout=0.5)
+                    logger.info("Installation alert sent successfully")
+                except TimeoutError:
+                    # Таймаут - отправка все еще может быть в процессе
+                    logger.warning("Installation alert send timed out after 0.5s (may still be sending in background)")
+                except Exception as e:
+                    # Реальная ошибка отправки
+                    logger.error(f"Failed to send installation alert: {e}", exc_info=True)
+            except Exception as e:
+                logger.error(f"Failed to schedule installation alert send: {e}", exc_info=True)
+        else:
+            logger.warning("Cannot send installation alert - client not available")
         
         # Прерываем текущую сессию если она есть
         if self.timer_widget:
