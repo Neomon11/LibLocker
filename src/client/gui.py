@@ -1142,10 +1142,19 @@ class MainClientWindow(QMainWindow):
         # Отправляем уведомление на сервер асинхронно
         if self.client_thread.client and self.client_thread.loop:
             logger.info("Sending installation alert to server")
-            asyncio.run_coroutine_threadsafe(
-                self.client_thread.client.send_installation_alert(reason),
-                self.client_thread.loop
-            )
+            try:
+                future = asyncio.run_coroutine_threadsafe(
+                    self.client_thread.client.send_installation_alert(reason),
+                    self.client_thread.loop
+                )
+                # Даем немного времени на отправку (неблокирующая проверка)
+                try:
+                    future.result(timeout=0.5)
+                    logger.info("Installation alert sent successfully")
+                except Exception as e:
+                    logger.warning(f"Could not confirm alert send (may still be sending): {e}")
+            except Exception as e:
+                logger.error(f"Failed to send installation alert to server: {e}", exc_info=True)
         else:
             logger.warning("Cannot send installation alert - client not available")
         

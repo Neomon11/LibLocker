@@ -10,14 +10,32 @@ import sys
 import os
 import time
 import asyncio
+import tempfile
 from pathlib import Path
 from unittest.mock import Mock, AsyncMock, MagicMock
+from contextlib import contextmanager
 
 # Добавляем путь к src
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.client.installation_monitor import InstallationMonitor
 from src.shared.protocol import InstallationAlertMessage, MessageType
+
+
+@contextmanager
+def create_test_installer_file(downloads_path):
+    """Context manager для создания и автоматического удаления тестового файла"""
+    test_file = downloads_path / f"test_installer_{int(time.time() * 1000)}.exe"
+    try:
+        with open(test_file, 'wb') as f:
+            f.write(b"Test installer file")
+        yield test_file
+    finally:
+        if test_file.exists():
+            try:
+                test_file.unlink()
+            except Exception as e:
+                print(f"Warning: Could not delete test file: {e}")
 
 
 def test_installation_monitor_basic():
@@ -49,13 +67,9 @@ def test_installation_monitor_basic():
     print("\n3. Создание тестового установочного файла...")
     # Создаем тестовый .exe файл в папке Downloads
     downloads_path = Path.home() / "Downloads"
-    test_file = None
     
     if downloads_path.exists():
-        test_file = downloads_path / f"test_installer_{int(time.time())}.exe"
-        try:
-            with open(test_file, 'wb') as f:
-                f.write(b"Test installer file")
+        with create_test_installer_file(downloads_path) as test_file:
             print(f"  ✓ Создан файл: {test_file}")
             
             # Ждем обнаружения
@@ -68,14 +82,7 @@ def test_installation_monitor_basic():
                 if i % 3 == 0:
                     print(f"  ... {i+1}/15 секунд")
             
-            # Удаляем тестовый файл
-            if test_file.exists():
-                test_file.unlink()
-                print(f"\n5. Тестовый файл удален")
-        except Exception as e:
-            print(f"  ✗ Ошибка при работе с файлом: {e}")
-            if test_file and test_file.exists():
-                test_file.unlink()
+            print(f"\n5. Тестовый файл будет автоматически удален")
     else:
         print(f"  ✗ Папка Downloads не найдена: {downloads_path}")
     

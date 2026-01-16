@@ -10,7 +10,8 @@ from typing import Optional, Callable
 import socketio
 
 from ..shared.protocol import (
-    Message, MessageType, ClientRegisterMessage, HeartbeatMessage
+    Message, MessageType, ClientRegisterMessage, HeartbeatMessage,
+    ClientSessionStopRequestMessage, InstallationAlertMessage
 )
 from ..shared.utils import get_hwid, get_mac_address, get_computer_name, get_local_ip
 from ..shared.models import ClientStatus
@@ -264,8 +265,6 @@ class LibLockerClient:
         if not self.connected:
             logger.warning("Cannot request session stop: not connected to server")
             return
-
-        from ..shared.protocol import ClientSessionStopRequestMessage
         
         stop_request_msg = ClientSessionStopRequestMessage(reason='user_request')
         await self.sio.emit('message', stop_request_msg.to_message().to_dict())
@@ -276,9 +275,6 @@ class LibLockerClient:
         if not self.connected:
             logger.warning("Cannot send installation alert: not connected to server")
             return
-
-        from ..shared.protocol import InstallationAlertMessage
-        from datetime import datetime
         
         alert_msg = InstallationAlertMessage(
             reason=reason,
