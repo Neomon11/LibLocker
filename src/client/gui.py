@@ -998,8 +998,7 @@ class MainClientWindow(QMainWindow):
             self.red_alert_screen.force_close()
         
         # Скрываем иконку трея
-        if hasattr(self, 'tray_icon'):
-            self.tray_icon.hide()
+        self.tray_icon.hide()
         
         # Завершаем приложение
         QApplication.quit()
