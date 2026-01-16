@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Тестовый скрипт для проверки синхронизации настроек модуля антиустановки
+Тестовый скрипт для проверки синхронизации настроек модуля мониторинга установки программ
 """
 import sys
 import os
@@ -14,7 +14,7 @@ from src.shared.protocol import InstallationMonitorToggleMessage
 def test_server_config():
     """Тест конфигурации сервера"""
     print("=" * 60)
-    print("Тест конфигурации модуля антиустановки на сервере")
+    print("Тест конфигурации модуля мониторинга установки программ на сервере")
     print("=" * 60)
     
     try:
@@ -35,7 +35,7 @@ def test_server_config():
         # Перезагружаем и проверяем
         print("\nПерезагрузка конфигурации...")
         config2 = ServerConfig()
-        assert config2.installation_monitor_enabled == True, "Enabled должен быть True"
+        assert config2.installation_monitor_enabled, "Enabled должен быть True"
         assert config2.installation_monitor_alert_volume == 75, "Volume должен быть 75"
         print("✓ Настройки сохранились корректно")
         
@@ -93,7 +93,7 @@ def test_protocol_message():
         
         # Проверяем, что данные корректны
         assert msg_dict['type'] == 'installation_monitor_toggle'
-        assert msg_dict['data']['enabled'] == True
+        assert msg_dict['data']['enabled']
         assert msg_dict['data']['alert_volume'] == 65
         print("\n✓ Все поля присутствуют и корректны")
         

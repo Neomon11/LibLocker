@@ -938,8 +938,8 @@ class MainWindow(QMainWindow):
         network_group.setLayout(network_layout)
         layout.addWidget(network_group)
 
-        # Группа настроек антиустановки
-        installation_monitor_group = QGroupBox("Модуль антиустановки (синхронизируется на все клиенты)")
+        # Группа настроек мониторинга установки программ
+        installation_monitor_group = QGroupBox("Модуль мониторинга установки программ (синхронизируется на все клиенты)")
         installation_monitor_layout = QFormLayout()
 
         self.installation_monitor_enabled_check = QCheckBox("Включить мониторинг установки программ по умолчанию")
