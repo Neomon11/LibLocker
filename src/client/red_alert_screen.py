@@ -6,8 +6,9 @@ import sys
 import logging
 import base64
 from pathlib import Path
-from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QLabel
-from PyQt6.QtCore import Qt, QTimer
+from datetime import datetime
+from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QDialog, QLineEdit, QPushButton, QMessageBox
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QColor, QPalette
 
 logger = logging.getLogger(__name__)
@@ -59,12 +60,19 @@ def load_siren_audio():
 class RedAlertLockScreen(QMainWindow):
     """Красный экран блокировки при обнаружении установки программ"""
     
-    def __init__(self, reason: str = "Обнаружена попытка установки программы", alert_volume: int = 80):
+    unlocked = pyqtSignal()  # Сигнал разблокировки администратором
+    
+    def __init__(self, reason: str = "Обнаружена попытка установки программы", alert_volume: int = 80, config=None):
         super().__init__()
         self.reason = reason
         self.alert_volume = alert_volume
         self.media_player = None
         self.audio_output = None
+        self.config = config
+        
+        # Счетчик кликов для ввода пароля (triple-click в углу)
+        self.corner_clicks = 0
+        self.last_click_time = None
         
         self.init_ui()
         self.setup_fullscreen()
@@ -122,6 +130,17 @@ class RedAlertLockScreen(QMainWindow):
         info_label.setFont(info_font)
         info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(info_label)
+        
+        layout.addSpacing(20)
+        
+        # Подсказка для админа
+        hint_label = QLabel("(Администратор: тройной клик в правом верхнем углу)")
+        hint_font = QFont()
+        hint_font.setPointSize(12)
+        hint_label.setFont(hint_font)
+        hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hint_label.setStyleSheet("color: #FFB6C1;")  # Светло-розовый для читабельности на красном
+        layout.addWidget(hint_label)
         
         # Установка КРАСНОГО фона
         palette = self.palette()
@@ -253,9 +272,79 @@ class RedAlertLockScreen(QMainWindow):
         event.ignore()
     
     def mousePressEvent(self, event):
-        """Блокировка кликов мыши"""
-        # Блокируем все клики
-        event.ignore()
+        """Обработка кликов мыши для показа поля пароля"""
+        # Клик в правом верхнем углу
+        if event.pos().x() > self.width() - 100 and event.pos().y() < 100:
+            current_time = datetime.now()
+            
+            # Проверка тройного клика (в течение 1 секунды)
+            if self.last_click_time and (current_time - self.last_click_time).total_seconds() < 1:
+                self.corner_clicks += 1
+            else:
+                self.corner_clicks = 1
+            
+            self.last_click_time = current_time
+            
+            # Если 3 клика - показываем поле пароля
+            if self.corner_clicks >= 3:
+                self.show_password_dialog()
+                self.corner_clicks = 0
+        else:
+            # Блокируем все другие клики
+            event.ignore()
+    
+    def show_password_dialog(self):
+        """Показать диалог ввода пароля администратора"""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Разблокировка")
+        dialog.setModal(True)
+        dialog.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Dialog)
+        
+        layout = QVBoxLayout()
+        
+        label = QLabel("Введите пароль администратора для разблокировки:")
+        layout.addWidget(label)
+        
+        password_input = QLineEdit()
+        password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        layout.addWidget(password_input)
+        
+        buttons = QHBoxLayout()
+        btn_ok = QPushButton("OK")
+        btn_cancel = QPushButton("Отмена")
+        buttons.addWidget(btn_ok)
+        buttons.addWidget(btn_cancel)
+        layout.addLayout(buttons)
+        
+        dialog.setLayout(layout)
+        
+        def check_password():
+            password = password_input.text()
+            
+            # Если config не передан или пароль не установлен
+            if not self.config or not self.config.admin_password_hash:
+                QMessageBox.warning(
+                    dialog,
+                    "Предупреждение",
+                    "Пароль администратора не установлен!\nОбратитесь к администратору для настройки безопасности."
+                )
+                dialog.accept()
+                self.unlocked.emit()
+                return
+            
+            # Проверяем пароль через verify_password
+            from ..shared.utils import verify_password
+            if verify_password(password, self.config.admin_password_hash):
+                QMessageBox.information(dialog, "Успех", "Разблокировка выполнена")
+                dialog.accept()
+                self.unlocked.emit()
+            else:
+                QMessageBox.warning(dialog, "Ошибка", "Неверный пароль")
+        
+        btn_ok.clicked.connect(check_password)
+        btn_cancel.clicked.connect(dialog.reject)
+        
+        dialog.exec()
     
     def closeEvent(self, event):
         """Блокировка закрытия окна"""
@@ -269,4 +358,13 @@ class RedAlertLockScreen(QMainWindow):
         if self.blink_timer:
             self.blink_timer.stop()
         
-        event.accept()
+        # Окно может быть закрыто только программно или по паролю
+        if not hasattr(self, '_allow_close'):
+            event.ignore()
+        else:
+            event.accept()
+    
+    def force_close(self):
+        """Принудительное закрытие окна"""
+        self._allow_close = True
+        self.close()

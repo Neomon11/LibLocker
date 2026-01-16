@@ -12,10 +12,10 @@ from PyQt6.QtWidgets import (
     QPushButton, QTableWidget, QTableWidgetItem, QLabel, QDialog,
     QSpinBox, QDoubleSpinBox, QCheckBox, QLineEdit, QMessageBox,
     QTabWidget, QGroupBox, QFormLayout, QHeaderView, QDateEdit, QComboBox,
-    QInputDialog
+    QInputDialog, QMenu
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread, QDate
-from PyQt6.QtGui import QIcon, QColor
+from PyQt6.QtGui import QIcon, QColor, QAction
 import qasync
 
 from .server import LibLockerServer
@@ -729,9 +729,11 @@ class MainWindow(QMainWindow):
         self.clients_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.clients_table.setAlternatingRowColors(True)
         self.clients_table.setStyleSheet(TABLE_STYLE)
+        self.clients_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.clients_table.customContextMenuRequested.connect(self.show_client_context_menu)
         layout.addWidget(self.clients_table)
 
-        # Кнопки управления
+        # Кнопки управления (только основные)
         buttons_layout = QHBoxLayout()
 
         self.btn_start_session = QPushButton("🎮 Начать сессию")
@@ -741,34 +743,12 @@ class MainWindow(QMainWindow):
         self.btn_start_session.setStyleSheet(BUTTON_STYLE_PRIMARY)
         buttons_layout.addWidget(self.btn_start_session)
 
-        self.btn_edit_session = QPushButton("⏱️ Изменить время")
-        self.btn_edit_session.clicked.connect(self.edit_session_time)
-        self.btn_edit_session.setMinimumHeight(40)
-        self.btn_edit_session.setMinimumWidth(200)
-        self.btn_edit_session.setStyleSheet(BUTTON_STYLE_INFO)
-        buttons_layout.addWidget(self.btn_edit_session)
-
         self.btn_stop_session = QPushButton("⏹️ Остановить сессию")
         self.btn_stop_session.clicked.connect(self.stop_session)
         self.btn_stop_session.setMinimumHeight(40)
         self.btn_stop_session.setMinimumWidth(200)
         self.btn_stop_session.setStyleSheet(BUTTON_STYLE_DANGER)
         buttons_layout.addWidget(self.btn_stop_session)
-
-        self.btn_shutdown = QPushButton("🔌 Выключить ПК")
-        self.btn_shutdown.clicked.connect(self.shutdown_client)
-        self.btn_shutdown.setMinimumHeight(40)
-        self.btn_shutdown.setMinimumWidth(200)
-        self.btn_shutdown.setStyleSheet(BUTTON_STYLE_WARNING)
-        buttons_layout.addWidget(self.btn_shutdown)
-
-        self.btn_toggle_monitor = QPushButton("🔍 Мониторинг установки")
-        self.btn_toggle_monitor.clicked.connect(self.toggle_installation_monitor)
-        self.btn_toggle_monitor.setMinimumHeight(40)
-        self.btn_toggle_monitor.setMinimumWidth(200)
-        self.btn_toggle_monitor.setStyleSheet(BUTTON_STYLE_INFO)
-        self.btn_toggle_monitor.setCheckable(True)
-        buttons_layout.addWidget(self.btn_toggle_monitor)
 
         buttons_layout.addStretch()
         layout.addLayout(buttons_layout)
@@ -1334,8 +1314,18 @@ class MainWindow(QMainWindow):
         row = selected_rows[0].row()
         client_id = int(self.clients_table.item(row, 0).text())
 
-        # Получаем текущее состояние кнопки
-        enabled = self.btn_toggle_monitor.isChecked()
+        # Получаем текущее состояние из базы данных
+        db_session = self.db.get_session()
+        try:
+            client = db_session.query(ClientModel).filter_by(id=client_id).first()
+            if not client:
+                QMessageBox.warning(self, "Ошибка", "Клиент не найден")
+                return
+            
+            # Переключаем состояние
+            enabled = not (hasattr(client, 'installation_monitor_enabled') and client.installation_monitor_enabled)
+        finally:
+            db_session.close()
 
         # Отправляем команду
         self._execute_async_command(
@@ -1343,6 +1333,68 @@ class MainWindow(QMainWindow):
             success_message=f"Мониторинг установки {'включен' if enabled else 'выключен'}",
             error_prefix="Не удалось изменить состояние мониторинга"
         )
+    
+    def show_client_context_menu(self, position):
+        """Показать контекстное меню для клиента"""
+        # Получаем выбранную строку
+        selected_items = self.clients_table.selectedItems()
+        if not selected_items:
+            return
+        
+        row = selected_items[0].row()
+        client_id = int(self.clients_table.item(row, 0).text())
+        
+        # Создаем контекстное меню
+        menu = QMenu(self)
+        
+        # Действие: Изменить время сессии
+        edit_time_action = QAction("⏱️ Изменить время сессии", self)
+        edit_time_action.triggered.connect(self.edit_session_time)
+        menu.addAction(edit_time_action)
+        
+        # Действие: Включить/выключить мониторинг
+        monitor_action = QAction("🔍 Переключить мониторинг установки", self)
+        monitor_action.triggered.connect(self.toggle_installation_monitor)
+        menu.addAction(monitor_action)
+        
+        # Действие: Выключить компьютер
+        shutdown_action = QAction("🔌 Выключить компьютер", self)
+        shutdown_action.triggered.connect(self.shutdown_client)
+        menu.addAction(shutdown_action)
+        
+        menu.addSeparator()
+        
+        # Действие: Разблокировать
+        unlock_action = QAction("🔓 Разблокировать", self)
+        unlock_action.triggered.connect(self.unlock_client)
+        menu.addAction(unlock_action)
+        
+        # Показываем меню
+        menu.exec(self.clients_table.viewport().mapToGlobal(position))
+    
+    def unlock_client(self):
+        """Разблокировать клиента (снять красный экран и экран конца сессии)"""
+        selected_rows = self.clients_table.selectedItems()
+        if not selected_rows:
+            QMessageBox.warning(self, "Ошибка", "Выберите клиента")
+            return
+
+        row = selected_rows[0].row()
+        client_id = int(self.clients_table.item(row, 0).text())
+
+        reply = QMessageBox.question(
+            self, "Подтверждение",
+            "Вы уверены, что хотите разблокировать этот клиент?\n\n"
+            "Это снимет блокировку с красного экрана тревоги и экрана конца сессии.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            self._execute_async_command(
+                self.server.unlock_client(client_id),
+                success_message="Команда разблокировки отправлена",
+                error_prefix="Не удалось отправить команду разблокировки"
+            )
 
     def save_settings(self):
         """Сохранить настройки"""
