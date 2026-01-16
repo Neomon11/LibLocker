@@ -133,7 +133,13 @@ class ServerConfig(Config):
 
     @property
     def log_file(self) -> str:
-        return self.get('logging', 'file', 'logs/server.log')
+        path = self.get('logging', 'file', 'logs/server.log')
+        # Если путь относительный, преобразуем в абсолютный
+        if not os.path.isabs(path):
+            from .utils import get_application_path
+            app_path = get_application_path()
+            path = os.path.join(app_path, path)
+        return path
 
     @property
     def installation_monitor_enabled(self) -> bool:
@@ -220,7 +226,13 @@ class ClientConfig(Config):
 
     @property
     def log_file(self) -> str:
-        return self.get('logging', 'file', 'logs/client.log')
+        path = self.get('logging', 'file', 'logs/client.log')
+        # Если путь относительный, преобразуем в абсолютный
+        if not os.path.isabs(path):
+            from .utils import get_application_path
+            app_path = get_application_path()
+            path = os.path.join(app_path, path)
+        return path
 
     @property
     def autostart_enabled(self) -> bool:
