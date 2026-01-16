@@ -97,7 +97,15 @@ class ServerConfig(Config):
 
     @property
     def database_path(self) -> str:
-        return self.get('database', 'path', 'data/liblocker.db')
+        path = self.get('database', 'path', 'data/liblocker.db')
+        # Если путь относительный, преобразуем в абсолютный
+        if not os.path.isabs(path):
+            from .utils import get_data_directory
+            # Получаем только имя файла, игнорируя 'data/' в начале
+            db_filename = os.path.basename(path)
+            data_dir = get_data_directory()
+            path = os.path.join(data_dir, db_filename)
+        return path
 
     @property
     def free_mode(self) -> bool:

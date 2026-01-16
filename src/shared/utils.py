@@ -191,3 +191,38 @@ def verify_password(password: str, hashed: str) -> bool:
     import bcrypt
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
+
+def get_application_path() -> str:
+    """
+    Получение базового пути приложения
+    Учитывает запуск через PyInstaller (использует sys._MEIPASS)
+    
+    Returns:
+        Путь к директории с исполняемым файлом или скриптом
+    """
+    if getattr(sys, 'frozen', False):
+        # Запуск из PyInstaller executable
+        # sys.executable - путь к .exe файлу
+        return os.path.dirname(sys.executable)
+    else:
+        # Обычный запуск Python скрипта
+        # Возвращаем директорию корня проекта (где находится run_server.py)
+        return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def get_data_directory() -> str:
+    """
+    Получение пути к директории данных приложения
+    Создает директорию, если она не существует
+    
+    Returns:
+        Путь к директории data
+    """
+    base_path = get_application_path()
+    data_dir = os.path.join(base_path, 'data')
+    
+    # Создаем директорию, если не существует
+    os.makedirs(data_dir, exist_ok=True)
+    
+    return data_dir
+
