@@ -447,6 +447,59 @@ class LibLockerServer:
         finally:
             db_session.close()
 
+    async def update_session_tariff(self, client_id: int, free_mode: bool, cost_per_hour: float = 0.0) -> bool:
+        """Обновить тарификацию активной сессии для клиента"""
+        logger.info(f"Updating session tariff for client {client_id}: free_mode={free_mode}, cost_per_hour={cost_per_hour}")
+
+        # Находим sid клиента
+        client_sid = None
+        for sid, info in self.connected_clients.items():
+            if info['client_id'] == client_id:
+                client_sid = sid
+                break
+
+        if not client_sid:
+            logger.error(f"Client {client_id} not connected")
+            return False
+
+        # Обновляем сессию в БД
+        db_session = self.db.get_session()
+        try:
+            active_session = db_session.query(SessionModel).filter_by(
+                client_id=client_id,
+                status='active'
+            ).first()
+
+            if not active_session:
+                logger.error(f"No active session for client {client_id}")
+                return False
+
+            # Обновляем тарификацию
+            active_session.free_mode = free_mode
+            active_session.cost_per_hour = cost_per_hour
+            db_session.commit()
+
+            # Отправляем команду клиенту
+            from ..shared.protocol import SessionTariffUpdateMessage
+
+            update_msg = SessionTariffUpdateMessage(
+                free_mode=free_mode,
+                cost_per_hour=cost_per_hour,
+                reason="admin_update"
+            )
+
+            await self.sio.emit('message', update_msg.to_message().to_dict(), room=client_sid)
+
+            logger.info(f"Session tariff updated for client {client_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error updating session tariff: {e}")
+            db_session.rollback()
+            return False
+        finally:
+            db_session.close()
+
     async def shutdown_client(self, client_id: int) -> bool:
         """Отправить команду выключения клиента"""
         logger.info(f"Shutting down client {client_id}")

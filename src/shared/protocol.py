@@ -21,6 +21,7 @@ class MessageType(Enum):
     SESSION_START = "session_start"
     SESSION_STOP = "session_stop"
     SESSION_TIME_UPDATE = "session_time_update"
+    SESSION_TARIFF_UPDATE = "session_tariff_update"
     SHUTDOWN = "shutdown"
     UNLOCK = "unlock"
     CONFIG_UPDATE = "config_update"
@@ -119,6 +120,20 @@ class SessionTimeUpdateMessage:
     def to_message(self) -> Message:
         return Message(
             type=MessageType.SESSION_TIME_UPDATE.value,
+            data=asdict(self)
+        )
+
+
+@dataclass
+class SessionTariffUpdateMessage:
+    """Сообщение об изменении тарификации активной сессии администратором"""
+    free_mode: bool
+    cost_per_hour: float = 0.0
+    reason: str = "admin_update"
+
+    def to_message(self) -> Message:
+        return Message(
+            type=MessageType.SESSION_TARIFF_UPDATE.value,
             data=asdict(self)
         )
 
