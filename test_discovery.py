@@ -7,7 +7,11 @@ import time
 import threading
 import logging
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+# Add the project root to the path for imports
+# This works regardless of where the test file is located
+project_root = os.path.dirname(os.path.abspath(__file__))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 from src.shared.discovery import (
     ServerDiscovery, ServerAnnouncer, ServerInfo, 

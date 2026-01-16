@@ -215,18 +215,22 @@ class ServerAnnouncer:
             if self.sock:
                 try:
                     self.sock.close()
-                except:
+                except Exception:
                     pass
 
 
-def scan_network_for_servers(start_ip: str = None, timeout: float = 0.5) -> List[ServerInfo]:
+def scan_network_for_servers(start_ip: str = None, timeout: float = 0.5, max_ips: int = 254) -> List[ServerInfo]:
     """
     Сканирует локальную сеть на наличие серверов LibLocker методом прямого подключения
     Используется как fallback если UDP broadcast не работает
     
+    ВНИМАНИЕ: Этот метод может быть медленным для больших сетей, так как сканирует 
+    каждый IP последовательно. Рекомендуется использовать UDP broadcast вместо него.
+    
     Args:
         start_ip: Начальный IP адрес (если None, определяется автоматически)
-        timeout: Таймаут подключения к каждому IP
+        timeout: Таймаут подключения к каждому IP (в секундах)
+        max_ips: Максимальное количество IP для сканирования (по умолчанию 254)
         
     Returns:
         Список найденных серверов
@@ -250,11 +254,12 @@ def scan_network_for_servers(start_ip: str = None, timeout: float = 0.5) -> List
         ip_parts = local_ip.split('.')
         subnet = '.'.join(ip_parts[:3])
         
-        logger.info(f"Scanning subnet {subnet}.* for servers")
+        logger.info(f"Scanning subnet {subnet}.* for servers (up to {max_ips} IPs)")
+        logger.warning("Network scan is slow - consider using UDP broadcast discovery instead")
         
-        # Сканируем подсеть (упрощенный вариант - только последний октет)
-        # В реальности можно добавить более умное сканирование
-        for i in range(1, 255):
+        # Сканируем подсеть (ограничено max_ips)
+        scan_range = min(max_ips, 254)
+        for i in range(1, scan_range + 1):
             if not threading.current_thread().is_alive():
                 break
             
