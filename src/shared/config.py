@@ -206,3 +206,19 @@ class ClientConfig(Config):
     def auto_connect(self) -> bool:
         return self.get_bool('autostart', 'auto_connect', True)
 
+    @property
+    def installation_monitor_enabled(self) -> bool:
+        return self.get_bool('installation_monitor', 'enabled', False)
+
+    @installation_monitor_enabled.setter
+    def installation_monitor_enabled(self, value: bool):
+        self.set('installation_monitor', 'enabled', value)
+
+    @property
+    def alert_volume(self) -> int:
+        return self.get_int('installation_monitor', 'alert_volume', 80)
+
+    @alert_volume.setter
+    def alert_volume(self, value: int):
+        self.set('installation_monitor', 'alert_volume', value)
+

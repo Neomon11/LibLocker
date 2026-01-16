@@ -753,6 +753,14 @@ class MainWindow(QMainWindow):
         self.btn_shutdown.setStyleSheet(BUTTON_STYLE_WARNING)
         buttons_layout.addWidget(self.btn_shutdown)
 
+        self.btn_toggle_monitor = QPushButton("🔍 Мониторинг установки")
+        self.btn_toggle_monitor.clicked.connect(self.toggle_installation_monitor)
+        self.btn_toggle_monitor.setMinimumHeight(40)
+        self.btn_toggle_monitor.setMinimumWidth(200)
+        self.btn_toggle_monitor.setStyleSheet(BUTTON_STYLE_INFO)
+        self.btn_toggle_monitor.setCheckable(True)
+        buttons_layout.addWidget(self.btn_toggle_monitor)
+
         buttons_layout.addStretch()
         layout.addLayout(buttons_layout)
 
@@ -1290,6 +1298,26 @@ class MainWindow(QMainWindow):
                 success_message="Команда выключения отправлена",
                 error_prefix="Не удалось отправить команду выключения"
             )
+
+    def toggle_installation_monitor(self):
+        """Переключить мониторинг установки для выбранного клиента"""
+        selected_rows = self.clients_table.selectedItems()
+        if not selected_rows:
+            QMessageBox.warning(self, "Ошибка", "Выберите клиента")
+            return
+
+        row = selected_rows[0].row()
+        client_id = int(self.clients_table.item(row, 0).text())
+
+        # Получаем текущее состояние кнопки
+        enabled = self.btn_toggle_monitor.isChecked()
+
+        # Отправляем команду
+        self._execute_async_command(
+            self.server.toggle_installation_monitor(client_id, enabled),
+            success_message=f"Мониторинг установки {'включен' if enabled else 'выключен'}",
+            error_prefix="Не удалось изменить состояние мониторинга"
+        )
 
     def save_settings(self):
         """Сохранить настройки"""

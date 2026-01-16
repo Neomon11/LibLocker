@@ -11,10 +11,10 @@ from pathlib import Path
 from typing import Optional
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QLineEdit, QMessageBox, QDialog
+    QPushButton, QLabel, QLineEdit, QMessageBox, QDialog, QMenu
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread, QPoint
-from PyQt6.QtGui import QFont, QColor, QPalette, QScreen
+from PyQt6.QtGui import QFont, QColor, QPalette, QScreen, QAction
 
 # Windows-specific imports (optional for cross-platform compatibility)
 try:
@@ -77,6 +77,7 @@ class ClientThread(QThread):
     password_updated = pyqtSignal(dict)
     shutdown_requested = pyqtSignal()
     connected_to_server = pyqtSignal()
+    installation_monitor_toggle = pyqtSignal(bool)
 
     def __init__(self, server_url: str):
         super().__init__()
@@ -122,12 +123,17 @@ class ClientThread(QThread):
             logger.info(f"[ClientThread] Emitting connected_to_server signal")
             self.connected_to_server.emit()
 
+        def emit_installation_monitor_toggle(enabled: bool):
+            logger.info(f"[ClientThread] Emitting installation_monitor_toggle signal: {enabled}")
+            self.installation_monitor_toggle.emit(enabled)
+
         self.client.on_session_start = emit_session_started
         self.client.on_session_stop = emit_session_stopped
         self.client.on_session_time_update = emit_session_time_updated
         self.client.on_password_update = emit_password_updated
         self.client.on_shutdown = emit_shutdown
         self.client.on_connected = emit_connected
+        self.client.on_installation_monitor_toggle = emit_installation_monitor_toggle
 
         # Запуск клиента
         try:
@@ -372,12 +378,14 @@ class TimerWidget(QWidget):
 
     session_finished = pyqtSignal()  # Сигнал окончания времени сессии
     session_stop_requested = pyqtSignal()  # Сигнал запроса остановки сессии пользователем
+    installation_monitor_toggle_requested = pyqtSignal(bool)  # Сигнал запроса изменения мониторинга установки
 
-    def __init__(self, session_data: dict, config: ClientConfig = None):
+    def __init__(self, session_data: dict, config: ClientConfig = None, installation_monitor_enabled: bool = False):
         super().__init__()
         self.session_data = session_data
         self.start_time = datetime.now()
         self.config = config or ClientConfig()
+        self.installation_monitor_enabled = installation_monitor_enabled
 
         # Расчет времени окончания
         duration_minutes = session_data.get('duration_minutes', 0)
@@ -739,6 +747,31 @@ class TimerWidget(QWidget):
         # Show notification after a short delay to avoid blocking
         QTimer.singleShot(100, show_time_change_notification)
 
+    def contextMenuEvent(self, event):
+        """Обработка правого клика для показа контекстного меню"""
+        context_menu = QMenu(self)
+        
+        # Добавляем пункт мониторинга установки
+        monitor_action = QAction("Включить мониторинг установки программ", self)
+        monitor_action.setCheckable(True)
+        monitor_action.setChecked(self.installation_monitor_enabled)
+        monitor_action.triggered.connect(self.toggle_installation_monitor)
+        context_menu.addAction(monitor_action)
+        
+        # Показываем меню
+        context_menu.exec(event.globalPos())
+    
+    def toggle_installation_monitor(self):
+        """Переключение мониторинга установки"""
+        self.installation_monitor_enabled = not self.installation_monitor_enabled
+        logger.info(f"Installation monitor toggle requested: {self.installation_monitor_enabled}")
+        self.installation_monitor_toggle_requested.emit(self.installation_monitor_enabled)
+    
+    def set_installation_monitor_status(self, enabled: bool):
+        """Установка статуса мониторинга установки (вызывается извне)"""
+        self.installation_monitor_enabled = enabled
+        logger.info(f"Installation monitor status updated: {enabled}")
+
     def force_close(self):
         """Принудительное закрытие виджета"""
         self.update_timer.stop()
@@ -762,6 +795,13 @@ class MainClientWindow(QMainWindow):
         self.lock_screen = None
         self.timer_widget = None
         self.current_session_data = None
+        self.red_alert_screen = None
+        
+        # Installation monitor
+        from .installation_monitor import InstallationMonitor
+        self.installation_monitor = InstallationMonitor(
+            on_installation_detected=self.on_installation_detected
+        )
 
         # WebSocket клиент
         self.client_thread = ClientThread(server_url)
@@ -783,6 +823,9 @@ class MainClientWindow(QMainWindow):
         )
         self.client_thread.connected_to_server.connect(
             self.on_connected_to_server, Qt.ConnectionType.QueuedConnection
+        )
+        self.client_thread.installation_monitor_toggle.connect(
+            self.on_installation_monitor_toggle, Qt.ConnectionType.QueuedConnection
         )
         self.client_thread.start()
 
@@ -831,6 +874,13 @@ class MainClientWindow(QMainWindow):
             # Подключаем сигнал запроса остановки сессии
             self.timer_widget.session_stop_requested.connect(self.on_session_stop_requested)
             logger.info("[MainWindow] Signal connected to on_session_stop_requested")
+
+            # Подключаем сигнал переключения мониторинга установки
+            self.timer_widget.installation_monitor_toggle_requested.connect(self.on_timer_widget_monitor_toggle_requested)
+            logger.info("[MainWindow] Signal connected to on_timer_widget_monitor_toggle_requested")
+            
+            # Устанавливаем текущий статус мониторинга в виджет
+            self.timer_widget.set_installation_monitor_status(self.config.installation_monitor_enabled)
 
             # Устанавливаем callback для получения remaining_seconds
             if self.client_thread.client:
@@ -1041,8 +1091,60 @@ class MainClientWindow(QMainWindow):
         self.connection_label.setText("✅ Подключено к серверу")
         self.connection_label.setStyleSheet("color: green;")
 
+    def on_installation_monitor_toggle(self, enabled: bool):
+        """Обработка команды переключения мониторинга установки от сервера"""
+        logger.info(f"Installation monitor toggle received from server: {enabled}")
+        
+        # Сохраняем в конфиг
+        self.config.installation_monitor_enabled = enabled
+        self.config.save()
+        
+        # Запускаем или останавливаем мониторинг
+        if enabled:
+            self.installation_monitor.start()
+        else:
+            self.installation_monitor.stop()
+        
+        # Обновляем статус в виджете таймера если он активен
+        if self.timer_widget:
+            self.timer_widget.set_installation_monitor_status(enabled)
+    
+    def on_timer_widget_monitor_toggle_requested(self, enabled: bool):
+        """Обработка запроса переключения мониторинга от виджета таймера"""
+        logger.info(f"Installation monitor toggle requested from timer widget: {enabled}")
+        
+        # Отправляем запрос на сервер через клиента
+        # Сервер должен будет отправить команду обратно всем клиентам
+        # Пока просто локально обрабатываем
+        self.on_installation_monitor_toggle(enabled)
+    
+    def on_installation_detected(self, reason: str):
+        """Обработка обнаружения установки программы"""
+        logger.critical(f"INSTALLATION DETECTED: {reason}")
+        
+        # Прерываем текущую сессию если она есть
+        if self.timer_widget:
+            self.timer_widget.force_close()
+            self.timer_widget = None
+        
+        if self.lock_screen:
+            self.lock_screen.close()
+            self.lock_screen = None
+        
+        # Показываем красный экран тревоги
+        from .red_alert_screen import RedAlertLockScreen
+        self.red_alert_screen = RedAlertLockScreen(
+            reason=reason,
+            alert_volume=self.config.alert_volume
+        )
+        self.red_alert_screen.show()
+
     def closeEvent(self, event):
         """Обработка закрытия окна"""
+        # Останавливаем мониторинг установки
+        if self.installation_monitor:
+            self.installation_monitor.stop()
+        
         # Сворачиваем в трей вместо закрытия
         event.ignore()
         self.hide()

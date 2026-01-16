@@ -444,6 +444,30 @@ class LibLockerServer:
             except Exception as e:
                 logger.error(f"Error sending password update to {sid}: {e}")
 
+    async def toggle_installation_monitor(self, client_id: int, enabled: bool) -> bool:
+        """Включить/выключить мониторинг установки для клиента"""
+        logger.info(f"Toggling installation monitor for client {client_id}: enabled={enabled}")
+
+        # Находим sid клиента
+        client_sid = None
+        for sid, info in self.connected_clients.items():
+            if info['client_id'] == client_id:
+                client_sid = sid
+                break
+
+        if not client_sid:
+            logger.error(f"Client {client_id} not connected")
+            return False
+
+        # Отправляем команду клиенту
+        from ..shared.protocol import InstallationMonitorToggleMessage
+
+        toggle_msg = InstallationMonitorToggleMessage(enabled=enabled)
+        await self.sio.emit('message', toggle_msg.to_message().to_dict(), room=client_sid)
+
+        logger.info(f"Installation monitor toggle sent to client {client_id}")
+        return True
+
     def get_connected_clients(self) -> list:
         """Получить список подключенных клиентов"""
         return [
