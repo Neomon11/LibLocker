@@ -59,8 +59,11 @@ def test_socketio_client_creation():
 
 def test_liblocker_client_import():
     """Test that LibLockerClient can be imported and instantiated"""
-    # Add src to path
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+    # Add src to path - use absolute path from script location
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    src_path = os.path.join(script_dir, 'src')
+    if src_path not in sys.path:
+        sys.path.insert(0, src_path)
     
     from src.client.client import LibLockerClient
     
