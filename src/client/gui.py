@@ -807,6 +807,8 @@ class MainClientWindow(QMainWindow):
         self.timer_widget = None
         self.current_session_data = None
         self.red_alert_screen = None
+        self.tray_icon = None
+        self._tray_notification_shown = False
         
         # Installation monitor with thread-safe signal wrapper
         self.installation_monitor_signals = InstallationMonitorSignals()
@@ -1367,7 +1369,7 @@ class MainClientWindow(QMainWindow):
         self.hide()
         
         # Показываем уведомление при первом сворачивании
-        if not hasattr(self, '_tray_notification_shown'):
+        if not self._tray_notification_shown:
             self.tray_icon.showMessage(
                 "LibLocker Client",
                 "Приложение свернуто в системный трей.\nДля закрытия используйте контекстное меню трея.",
