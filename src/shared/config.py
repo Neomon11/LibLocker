@@ -97,7 +97,15 @@ class ServerConfig(Config):
 
     @property
     def database_path(self) -> str:
-        return self.get('database', 'path', 'data/liblocker.db')
+        path = self.get('database', 'path', 'data/liblocker.db')
+        # Если путь относительный, преобразуем в абсолютный
+        if not os.path.isabs(path):
+            from .utils import get_data_directory
+            # Получаем только имя файла, игнорируя 'data/' в начале
+            db_filename = os.path.basename(path)
+            data_dir = get_data_directory()
+            path = os.path.join(data_dir, db_filename)
+        return path
 
     @property
     def free_mode(self) -> bool:
@@ -125,7 +133,13 @@ class ServerConfig(Config):
 
     @property
     def log_file(self) -> str:
-        return self.get('logging', 'file', 'logs/server.log')
+        path = self.get('logging', 'file', 'logs/server.log')
+        # Если путь относительный, преобразуем в абсолютный
+        if not os.path.isabs(path):
+            from .utils import get_application_path
+            app_path = get_application_path()
+            path = os.path.join(app_path, path)
+        return path
 
     @property
     def installation_monitor_enabled(self) -> bool:
@@ -212,7 +226,13 @@ class ClientConfig(Config):
 
     @property
     def log_file(self) -> str:
-        return self.get('logging', 'file', 'logs/client.log')
+        path = self.get('logging', 'file', 'logs/client.log')
+        # Если путь относительный, преобразуем в абсолютный
+        if not os.path.isabs(path):
+            from .utils import get_application_path
+            app_path = get_application_path()
+            path = os.path.join(app_path, path)
+        return path
 
     @property
     def autostart_enabled(self) -> bool:

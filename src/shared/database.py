@@ -2,6 +2,7 @@
 База данных для LibLocker Server
 SQLAlchemy модели
 """
+import os
 from datetime import datetime
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Enum
 from sqlalchemy.ext.declarative import declarative_base
@@ -87,6 +88,19 @@ class Database:
 
     def __init__(self, db_path: str = "data/liblocker.db"):
         """Инициализация БД"""
+        # Если путь относительный, преобразуем в абсолютный
+        if not os.path.isabs(db_path):
+            from .utils import get_data_directory
+            # Получаем только имя файла, игнорируя 'data/' в начале
+            db_filename = os.path.basename(db_path)
+            data_dir = get_data_directory()
+            db_path = os.path.join(data_dir, db_filename)
+        else:
+            # Для абсолютных путей создаем родительскую директорию, если не существует
+            parent_dir = os.path.dirname(db_path)
+            if parent_dir:
+                os.makedirs(parent_dir, exist_ok=True)
+        
         self.engine = create_engine(f'sqlite:///{db_path}', echo=False)
         Base.metadata.create_all(self.engine)
         self._migrate_database()
