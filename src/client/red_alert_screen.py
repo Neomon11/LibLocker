@@ -11,6 +11,8 @@ from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLab
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QColor, QPalette
 
+from ..shared.utils import verify_password
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -59,6 +61,10 @@ def load_siren_audio():
 
 class RedAlertLockScreen(QMainWindow):
     """Красный экран блокировки при обнаружении установки программ"""
+    
+    # Constants for triple-click detection
+    CORNER_CLICK_ZONE_SIZE = 100  # pixels from corner
+    TRIPLE_CLICK_TIMEOUT = 1.0  # seconds between clicks
     
     unlocked = pyqtSignal()  # Сигнал разблокировки администратором
     
@@ -274,11 +280,11 @@ class RedAlertLockScreen(QMainWindow):
     def mousePressEvent(self, event):
         """Обработка кликов мыши для показа поля пароля"""
         # Клик в правом верхнем углу
-        if event.pos().x() > self.width() - 100 and event.pos().y() < 100:
+        if event.pos().x() > self.width() - self.CORNER_CLICK_ZONE_SIZE and event.pos().y() < self.CORNER_CLICK_ZONE_SIZE:
             current_time = datetime.now()
             
-            # Проверка тройного клика (в течение 1 секунды)
-            if self.last_click_time and (current_time - self.last_click_time).total_seconds() < 1:
+            # Проверка тройного клика (в течение заданного времени)
+            if self.last_click_time and (current_time - self.last_click_time).total_seconds() < self.TRIPLE_CLICK_TIMEOUT:
                 self.corner_clicks += 1
             else:
                 self.corner_clicks = 1
@@ -333,7 +339,6 @@ class RedAlertLockScreen(QMainWindow):
                 return
             
             # Проверяем пароль через verify_password
-            from ..shared.utils import verify_password
             if verify_password(password, self.config.admin_password_hash):
                 QMessageBox.information(dialog, "Успех", "Разблокировка выполнена")
                 dialog.accept()

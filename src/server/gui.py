@@ -31,6 +31,12 @@ MIN_PASSWORD_LENGTH = 8
 RECOMMENDED_PASSWORD_LENGTH = 8
 ASYNC_OPERATION_TIMEOUT = 5.0  # Timeout in seconds for async operations
 
+# Messages
+UNLOCK_CONFIRMATION_MESSAGE = (
+    "Вы уверены, что хотите разблокировать этот клиент?\n\n"
+    "Это снимет блокировку с красного экрана тревоги и экрана конца сессии."
+)
+
 # Button styles
 BUTTON_STYLE_PRIMARY = """
     QPushButton {
@@ -1316,6 +1322,7 @@ class MainWindow(QMainWindow):
 
         # Получаем текущее состояние из базы данных
         db_session = self.db.get_session()
+        enabled = False
         try:
             client = db_session.query(ClientModel).filter_by(id=client_id).first()
             if not client:
@@ -1384,8 +1391,7 @@ class MainWindow(QMainWindow):
 
         reply = QMessageBox.question(
             self, "Подтверждение",
-            "Вы уверены, что хотите разблокировать этот клиент?\n\n"
-            "Это снимет блокировку с красного экрана тревоги и экрана конца сессии.",
+            UNLOCK_CONFIRMATION_MESSAGE,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
 
