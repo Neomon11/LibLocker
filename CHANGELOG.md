@@ -7,12 +7,13 @@
 **1. Исправлена ошибка WebSocket подключения клиента**
 - Проблема: Клиент не мог установить WebSocket соединение с сервером
 - Ошибка: `module aiohttp has no attribute ClientWSTimeout`
-- Решение: Обновлена версия aiohttp с 3.9.1 до 3.11.0
+- Решение: Обновлена версия aiohttp с 3.9.1 до 3.13.3
 - ClientWSTimeout требуется библиотекой python-engineio для WebSocket соединений
 - Минимальная версия aiohttp с поддержкой ClientWSTimeout: 3.11.0
+- Версия 3.13.3 включает исправление уязвимости zip bomb (CVE)
 
 #### Измененные файлы
-- `requirements.txt`: Обновлена версия aiohttp до 3.11.0
+- `requirements.txt`: Обновлена версия aiohttp до 3.13.3
 
 ---
 

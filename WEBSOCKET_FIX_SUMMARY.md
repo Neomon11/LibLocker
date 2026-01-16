@@ -22,24 +22,25 @@ This caused an `AttributeError` when python-engineio tried to use the `ClientWST
 
 ## Solution
 
-Updated the aiohttp version in `requirements.txt` from `3.9.1` to `3.11.0`:
+Updated the aiohttp version in `requirements.txt` from `3.9.1` to `3.13.3`:
 
 ```diff
 # Асинхронные операции
 -aiohttp==3.9.1
-+aiohttp==3.11.0
++aiohttp==3.13.3
 asyncio==3.4.3
 ```
 
-### Why aiohttp 3.11.0?
+### Why aiohttp 3.13.3?
 
 - **Minimum version required**: aiohttp 3.11.0 is the first version that includes `ClientWSTimeout`
+- **Security patched**: aiohttp 3.13.3 includes a fix for a zip bomb vulnerability (CVE) present in versions <= 3.13.2
 - **Backward compatible**: The `aiohttp.web` API used by the LibLocker server remains fully compatible
-- **Stable release**: This is a stable release with good compatibility with other dependencies
+- **Stable release**: This is the latest stable release with security updates
 
 ## Changes Made
 
-1. **requirements.txt**: Updated aiohttp version from 3.9.1 to 3.11.0
+1. **requirements.txt**: Updated aiohttp version from 3.9.1 to 3.13.3 (includes security fix)
 2. **test_aiohttp_fix.py**: Created comprehensive test suite to verify:
    - aiohttp version is 3.11.0 or newer
    - `ClientWSTimeout` is available
@@ -51,11 +52,17 @@ asyncio==3.4.3
 ## Verification
 
 All tests pass successfully:
-- ✓ aiohttp version 3.11.0 is compatible
+- ✓ aiohttp version 3.13.3 is compatible
 - ✓ aiohttp.ClientWSTimeout is available
 - ✓ ClientWSTimeout can be instantiated successfully
 - ✓ socketio.AsyncClient created successfully
 - ✓ LibLockerClient imported and instantiated successfully
+
+### Security
+
+- **Zip bomb vulnerability**: Fixed by upgrading to aiohttp 3.13.3
+- **Vulnerability details**: Versions <= 3.13.2 had a vulnerability in HTTP Parser's auto_decompress feature
+- **Patched version**: 3.13.3 contains the security fix
 
 ## How to Apply This Fix
 
@@ -92,13 +99,16 @@ This is an important feature for maintaining reliable WebSocket connections in p
 - **Python version**: Tested with Python 3.12 (as shown in error logs)
 - **Operating System**: Works on Windows (as per user's environment: C:\Users\123qw\...)
 - **Other dependencies**: No conflicts with other requirements
-- **Server compatibility**: The server continues to work normally with aiohttp 3.11.0
+- **Server compatibility**: The server continues to work normally with aiohttp 3.13.3
 
 ## Security
 
 - Code review: ✓ No issues found
 - CodeQL security scan: ✓ No issues found
-- Dependency security: aiohttp 3.11.0 is a stable release with security updates from 3.9.1
+- Dependency security: ✓ aiohttp 3.13.3 includes fix for zip bomb vulnerability
+  - **CVE**: HTTP Parser auto_decompress zip bomb vulnerability
+  - **Affected versions**: <= 3.13.2
+  - **Patched version**: 3.13.3
 
 ---
 
