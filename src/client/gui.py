@@ -11,10 +11,10 @@ from pathlib import Path
 from typing import Optional
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QLineEdit, QMessageBox, QDialog, QMenu
+    QPushButton, QLabel, QLineEdit, QMessageBox, QDialog, QMenu, QSystemTrayIcon
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread, QPoint
-from PyQt6.QtGui import QFont, QColor, QPalette, QScreen, QAction
+from PyQt6.QtGui import QFont, QColor, QPalette, QScreen, QAction, QIcon
 
 # Windows-specific imports (optional for cross-platform compatibility)
 try:
@@ -849,6 +849,7 @@ class MainClientWindow(QMainWindow):
         self.client_thread.start()
 
         self.init_ui()
+        self.init_tray_icon()
 
     def init_ui(self):
         """Инициализация интерфейса"""
@@ -870,6 +871,137 @@ class MainClientWindow(QMainWindow):
         layout.addWidget(self.connection_label)
 
         layout.addStretch()
+
+    def init_tray_icon(self):
+        """Инициализация иконки в системном трее"""
+        # Создаем иконку трея
+        self.tray_icon = QSystemTrayIcon(self)
+        
+        # Создаем иконку (используем встроенную иконку Qt или можно загрузить свою)
+        # Для простоты используем стандартную иконку приложения
+        icon = self.style().standardIcon(self.style().StandardPixmap.SP_ComputerIcon)
+        self.tray_icon.setIcon(icon)
+        
+        # Создаем контекстное меню для трея
+        tray_menu = QMenu()
+        
+        # Действие "Развернуть"
+        show_action = QAction("Развернуть", self)
+        show_action.triggered.connect(self.show_window)
+        tray_menu.addAction(show_action)
+        
+        # Разделитель
+        tray_menu.addSeparator()
+        
+        # Действие "Закрыть клиент" (с проверкой пароля)
+        exit_action = QAction("Закрыть клиент", self)
+        exit_action.triggered.connect(self.exit_with_password_check)
+        tray_menu.addAction(exit_action)
+        
+        # Устанавливаем меню
+        self.tray_icon.setContextMenu(tray_menu)
+        
+        # Двойной клик по иконке показывает окно
+        self.tray_icon.activated.connect(self.on_tray_icon_activated)
+        
+        # Показываем иконку
+        self.tray_icon.show()
+        
+        # Устанавливаем подсказку
+        self.tray_icon.setToolTip("LibLocker Client")
+
+    def on_tray_icon_activated(self, reason):
+        """Обработка кликов по иконке в трее"""
+        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+            self.show_window()
+
+    def show_window(self):
+        """Показать главное окно"""
+        self.show()
+        self.raise_()
+        self.activateWindow()
+
+    def exit_with_password_check(self):
+        """Выход из приложения с проверкой пароля администратора"""
+        # Показываем диалог ввода пароля
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Закрытие клиента")
+        dialog.setModal(True)
+        dialog.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.WindowStaysOnTopHint)
+
+        layout = QVBoxLayout()
+
+        label = QLabel("Для закрытия клиента введите пароль администратора:")
+        layout.addWidget(label)
+
+        password_input = QLineEdit()
+        password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        layout.addWidget(password_input)
+
+        buttons = QHBoxLayout()
+        btn_ok = QPushButton("OK")
+        btn_cancel = QPushButton("Отмена")
+        buttons.addWidget(btn_ok)
+        buttons.addWidget(btn_cancel)
+        layout.addLayout(buttons)
+
+        dialog.setLayout(layout)
+
+        def check_password():
+            password = password_input.text()
+            admin_password_hash = self.config.admin_password_hash
+            
+            # Если пароль не установлен, предупреждаем но разрешаем
+            if not admin_password_hash:
+                reply = QMessageBox.question(
+                    dialog, 
+                    "Предупреждение", 
+                    "Пароль администратора не установлен!\nВы уверены, что хотите закрыть клиент?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                )
+                if reply == QMessageBox.StandardButton.Yes:
+                    dialog.accept()
+                    self.force_exit()
+                return
+            
+            # Проверяем пароль через verify_password
+            if verify_password(password, admin_password_hash):
+                dialog.accept()
+                self.force_exit()
+            else:
+                QMessageBox.warning(dialog, "Ошибка", "Неверный пароль")
+                password_input.clear()
+                password_input.setFocus()
+
+        btn_ok.clicked.connect(check_password)
+        btn_cancel.clicked.connect(dialog.reject)
+        
+        # Обработка Enter в поле пароля
+        password_input.returnPressed.connect(check_password)
+
+        dialog.exec()
+
+    def force_exit(self):
+        """Принудительное закрытие приложения"""
+        logger.info("Force exit requested - closing application")
+        
+        # Останавливаем мониторинг установки
+        if self.installation_monitor:
+            self.installation_monitor.stop()
+        
+        # Закрываем все окна
+        if self.lock_screen:
+            self.lock_screen.force_close()
+        if self.timer_widget:
+            self.timer_widget.force_close()
+        if self.red_alert_screen:
+            self.red_alert_screen.force_close()
+        
+        # Скрываем иконку трея
+        self.tray_icon.hide()
+        
+        # Завершаем приложение
+        QApplication.quit()
 
     def on_session_started(self, data: dict):
         """Обработка начала сессии"""
@@ -1231,9 +1363,19 @@ class MainClientWindow(QMainWindow):
         if self.installation_monitor:
             self.installation_monitor.stop()
         
-        # Сворачиваем в трей вместо закрытия
+        # Минимизируем в трей вместо закрытия
         event.ignore()
         self.hide()
+        
+        # Показываем уведомление при первом сворачивании
+        if not hasattr(self, '_tray_notification_shown'):
+            self.tray_icon.showMessage(
+                "LibLocker Client",
+                "Клиент свернут в системный трей. Для выхода используйте контекстное меню.",
+                QSystemTrayIcon.MessageIcon.Information,
+                3000  # 3 секунды
+            )
+            self._tray_notification_shown = True
 
 
 def main():
