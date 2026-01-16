@@ -51,6 +51,7 @@ class LibLockerClient:
         self.on_shutdown: Optional[Callable] = None
         self.on_unlock: Optional[Callable] = None
         self.on_connected: Optional[Callable] = None
+        self.on_installation_monitor_toggle: Optional[Callable] = None
         
         # Callback для получения remaining_seconds (должен возвращать Optional[int])
         self.get_remaining_seconds: Optional[Callable[[], Optional[int]]] = None
@@ -133,6 +134,8 @@ class LibLockerClient:
             await self._handle_shutdown()
         elif msg_type == MessageType.UNLOCK.value:
             await self._handle_unlock()
+        elif msg_type == MessageType.INSTALLATION_MONITOR_TOGGLE.value:
+            await self._handle_installation_monitor_toggle(msg.data)
         elif msg_type == MessageType.ACK.value:
             if 'client_id' in msg.data:
                 self.client_id = msg.data['client_id']
@@ -228,6 +231,20 @@ class LibLockerClient:
                     self.on_unlock()
             except Exception as e:
                 logger.error(f"Error calling on_unlock: {e}", exc_info=True)
+
+    async def _handle_installation_monitor_toggle(self, data: dict):
+        """Обработка команды включения/выключения мониторинга установки"""
+        enabled = data.get('enabled', False)
+        logger.info(f"Installation monitor toggle command received: enabled={enabled}")
+
+        if self.on_installation_monitor_toggle:
+            try:
+                if asyncio.iscoroutinefunction(self.on_installation_monitor_toggle):
+                    await self.on_installation_monitor_toggle(enabled)
+                else:
+                    self.on_installation_monitor_toggle(enabled)
+            except Exception as e:
+                logger.error(f"Error calling on_installation_monitor_toggle: {e}", exc_info=True)
 
     async def send_heartbeat(self, remaining_seconds: Optional[int] = None):
         """Отправка heartbeat на сервер"""

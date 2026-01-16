@@ -24,6 +24,7 @@ class MessageType(Enum):
     UNLOCK = "unlock"
     CONFIG_UPDATE = "config_update"
     PASSWORD_UPDATE = "password_update"
+    INSTALLATION_MONITOR_TOGGLE = "installation_monitor_toggle"
 
     # Двунаправленные
     PING = "ping"
@@ -141,6 +142,18 @@ class ClientSessionStopRequestMessage:
     def to_message(self) -> Message:
         return Message(
             type=MessageType.CLIENT_SESSION_STOP_REQUEST.value,
+            data=asdict(self)
+        )
+
+
+@dataclass
+class InstallationMonitorToggleMessage:
+    """Сообщение включения/выключения мониторинга установки"""
+    enabled: bool
+
+    def to_message(self) -> Message:
+        return Message(
+            type=MessageType.INSTALLATION_MONITOR_TOGGLE.value,
             data=asdict(self)
         )
 
