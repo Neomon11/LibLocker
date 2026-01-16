@@ -877,14 +877,8 @@ class MainClientWindow(QMainWindow):
         # Создаем иконку трея (используем стандартную иконку PyQt6)
         self.tray_icon = QSystemTrayIcon(self)
         
-        # Используем стандартную иконку или создаем простую
-        # PyQt6 может использовать QIcon() для стандартной иконки приложения
-        icon = QIcon()
-        if not icon.isNull():
-            self.tray_icon.setIcon(icon)
-        else:
-            # Используем стиль приложения для получения стандартной иконки
-            self.tray_icon.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_ComputerIcon))
+        # Используем стандартную иконку компьютера
+        self.tray_icon.setIcon(self.style().standardIcon(self.style().StandardPixmap.SP_ComputerIcon))
         
         self.tray_icon.setToolTip("LibLocker Client")
         
@@ -957,20 +951,19 @@ class MainClientWindow(QMainWindow):
             password = password_input.text()
             admin_password_hash = self.config.admin_password_hash
             
-            # Если пароль не установлен, предупреждаем но разрешаем
+            # Если пароль не установлен, запрещаем закрытие
             if not admin_password_hash:
-                QMessageBox.warning(
+                QMessageBox.critical(
                     dialog, 
-                    "Предупреждение", 
-                    "Пароль администратора не установлен!\nОбратитесь к администратору для настройки безопасности."
+                    "Ошибка", 
+                    "Пароль администратора не установлен!\n\n"
+                    "Для закрытия клиента необходимо сначала настроить пароль администратора.\n"
+                    "Обратитесь к администратору."
                 )
-                dialog.accept()
-                self.quit_application()
                 return
             
             # Проверяем пароль через verify_password
             if verify_password(password, admin_password_hash):
-                QMessageBox.information(dialog, "Успех", "Приложение будет закрыто")
                 dialog.accept()
                 self.quit_application()
             else:
