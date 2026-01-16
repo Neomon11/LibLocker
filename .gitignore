@@ -53,6 +53,8 @@ config.local.ini
 # Build files
 *.exe
 *.msi
-*.spec
+# Allow .spec files (PyInstaller build configurations)
+!client.spec
+!server.spec
 
 config.client.ini.backup
