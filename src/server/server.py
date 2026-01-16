@@ -473,6 +473,33 @@ class LibLockerServer:
         await self.sio.emit('message', shutdown_msg.to_dict(), room=client_sid)
 
         return True
+    
+    async def unlock_client(self, client_id: int) -> bool:
+        """Отправить команду разблокировки клиента (снять красный экран и экран конца сессии)"""
+        logger.info(f"Unlocking client {client_id}")
+
+        # Находим sid клиента
+        client_sid = None
+        for sid, info in self.connected_clients.items():
+            if info['client_id'] == client_id:
+                client_sid = sid
+                break
+
+        if not client_sid:
+            logger.error(f"Client {client_id} not connected")
+            return False
+
+        # Отправляем команду разблокировки
+        from ..shared.protocol import Message
+
+        unlock_msg = Message(
+            type=MessageType.UNLOCK.value,
+            data={},
+            timestamp=datetime.now().isoformat()
+        )
+        await self.sio.emit('message', unlock_msg.to_dict(), room=client_sid)
+
+        return True
 
     async def broadcast_password_update(self, admin_password_hash: str):
         """Отправить обновление пароля администратора всем подключенным клиентам"""

@@ -81,6 +81,7 @@ class ClientThread(QThread):
     session_time_updated = pyqtSignal(dict)
     password_updated = pyqtSignal(dict)
     shutdown_requested = pyqtSignal()
+    unlock_requested = pyqtSignal()  # Сигнал разблокировки от сервера
     connected_to_server = pyqtSignal()
     installation_monitor_toggle = pyqtSignal(bool, int)  # enabled, alert_volume
 
@@ -123,6 +124,10 @@ class ClientThread(QThread):
         def emit_shutdown():
             logger.info(f"[ClientThread] Emitting shutdown_requested signal")
             self.shutdown_requested.emit()
+        
+        def emit_unlock():
+            logger.info(f"[ClientThread] Emitting unlock_requested signal")
+            self.unlock_requested.emit()
 
         def emit_connected():
             logger.info(f"[ClientThread] Emitting connected_to_server signal")
@@ -137,6 +142,7 @@ class ClientThread(QThread):
         self.client.on_session_time_update = emit_session_time_updated
         self.client.on_password_update = emit_password_updated
         self.client.on_shutdown = emit_shutdown
+        self.client.on_unlock = emit_unlock
         self.client.on_connected = emit_connected
         self.client.on_installation_monitor_toggle = emit_installation_monitor_toggle
 
@@ -831,6 +837,9 @@ class MainClientWindow(QMainWindow):
         self.client_thread.shutdown_requested.connect(
             self.on_shutdown_requested, Qt.ConnectionType.QueuedConnection
         )
+        self.client_thread.unlock_requested.connect(
+            self.on_unlock_requested, Qt.ConnectionType.QueuedConnection
+        )
         self.client_thread.connected_to_server.connect(
             self.on_connected_to_server, Qt.ConnectionType.QueuedConnection
         )
@@ -1111,6 +1120,22 @@ class MainClientWindow(QMainWindow):
         if reply == QMessageBox.StandardButton.Yes:
             # Выключение компьютера (Windows)
             os.system("shutdown /s /t 5")
+    
+    def on_unlock_requested(self):
+        """Обработка команды разблокировки от сервера"""
+        logger.info("Unlock requested from server")
+        
+        # Разблокируем красный экран тревоги если он активен
+        if self.red_alert_screen:
+            logger.info("Unlocking red alert screen")
+            self.red_alert_screen.force_close()
+            self.red_alert_screen = None
+        
+        # Разблокируем экран блокировки конца сессии если он активен
+        if self.lock_screen:
+            logger.info("Unlocking lock screen")
+            self.lock_screen.force_close()
+            self.lock_screen = None
 
     def on_connected_to_server(self):
         """Обработка успешного подключения к серверу"""
@@ -1186,9 +1211,19 @@ class MainClientWindow(QMainWindow):
         from .red_alert_screen import RedAlertLockScreen
         self.red_alert_screen = RedAlertLockScreen(
             reason=reason,
-            alert_volume=self.config.alert_volume
+            alert_volume=self.config.alert_volume,
+            config=self.config
         )
+        # Подключаем сигнал разблокировки
+        self.red_alert_screen.unlocked.connect(self.on_red_alert_unlocked)
         self.red_alert_screen.show()
+    
+    def on_red_alert_unlocked(self):
+        """Обработка разблокировки красного экрана тревоги"""
+        logger.info("Red alert screen unlocked by admin password")
+        if self.red_alert_screen:
+            self.red_alert_screen.force_close()
+            self.red_alert_screen = None
 
     def closeEvent(self, event):
         """Обработка закрытия окна"""
