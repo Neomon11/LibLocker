@@ -195,7 +195,7 @@ def verify_password(password: str, hashed: str) -> bool:
 def get_application_path() -> str:
     """
     Получение базового пути приложения
-    Учитывает запуск через PyInstaller (использует sys._MEIPASS)
+    Учитывает запуск через PyInstaller (проверяет sys.frozen)
     
     Returns:
         Путь к директории с исполняемым файлом или скриптом
@@ -207,7 +207,8 @@ def get_application_path() -> str:
     else:
         # Обычный запуск Python скрипта
         # Возвращаем директорию корня проекта (где находится run_server.py)
-        return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        # __file__ находится в src/shared/utils.py, поднимаемся на 3 уровня вверх
+        return os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 
 def get_data_directory() -> str:
