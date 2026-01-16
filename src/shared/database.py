@@ -102,15 +102,15 @@ class Database:
         if 'sessions' in inspector.get_table_names():
             columns = {col['name'] for col in inspector.get_columns('sessions')}
             
-            # Добавляем отсутствующие колонки
+            # Добавляем отсутствующие колонки в одной транзакции
             with self.engine.connect() as conn:
                 if 'cost_per_hour' not in columns:
                     conn.execute(text('ALTER TABLE sessions ADD COLUMN cost_per_hour FLOAT DEFAULT 0.0'))
-                    conn.commit()
                 
                 if 'free_mode' not in columns:
                     conn.execute(text('ALTER TABLE sessions ADD COLUMN free_mode BOOLEAN DEFAULT 1'))
-                    conn.commit()
+                
+                conn.commit()
     
     def get_session(self):
         """Получить сессию БД"""

@@ -97,7 +97,7 @@ def test_migration_adds_missing_columns():
             
             assert new_session.id is not None, "Session should be created with id"
             assert new_session.cost_per_hour == 30.0, "cost_per_hour should be saved"
-            assert new_session.free_mode == False, "free_mode should be saved"
+            assert new_session.free_mode is False, "free_mode should be saved"
             
             print(f"✅ Successfully created session with id={new_session.id}")
             print(f"   cost_per_hour={new_session.cost_per_hour}, free_mode={new_session.free_mode}")
