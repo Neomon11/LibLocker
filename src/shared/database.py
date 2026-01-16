@@ -89,8 +89,29 @@ class Database:
         """Инициализация БД"""
         self.engine = create_engine(f'sqlite:///{db_path}', echo=False)
         Base.metadata.create_all(self.engine)
+        self._migrate_database()
         self.Session = sessionmaker(bind=self.engine)
 
+    def _migrate_database(self):
+        """Применить миграции к существующей базе данных"""
+        from sqlalchemy import inspect, text
+        
+        inspector = inspect(self.engine)
+        
+        # Проверяем таблицу sessions
+        if 'sessions' in inspector.get_table_names():
+            columns = {col['name'] for col in inspector.get_columns('sessions')}
+            
+            # Добавляем отсутствующие колонки в одной транзакции
+            with self.engine.connect() as conn:
+                if 'cost_per_hour' not in columns:
+                    conn.execute(text('ALTER TABLE sessions ADD COLUMN cost_per_hour FLOAT DEFAULT 0.0'))
+                
+                if 'free_mode' not in columns:
+                    conn.execute(text('ALTER TABLE sessions ADD COLUMN free_mode BOOLEAN DEFAULT 1'))
+                
+                conn.commit()
+    
     def get_session(self):
         """Получить сессию БД"""
         return self.Session()
