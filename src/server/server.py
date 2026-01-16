@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, Callable
 import socketio
 from aiohttp import web
 
@@ -38,6 +38,9 @@ class LibLockerServer:
 
         # Подключенные клиенты {sid: client_info}
         self.connected_clients: Dict[str, dict] = {}
+
+        # Callback для обработки уведомлений об установке
+        self.on_installation_alert: Optional[Callable] = None
 
         # Регистрация обработчиков событий
         self._register_handlers()
@@ -79,6 +82,8 @@ class LibLockerServer:
             await self._handle_session_sync(sid, msg.data)
         elif msg_type == MessageType.CLIENT_SESSION_STOP_REQUEST.value:
             await self._handle_client_session_stop_request(sid, msg.data)
+        elif msg_type == MessageType.INSTALLATION_ALERT.value:
+            await self._handle_installation_alert(sid, msg.data)
         elif msg_type == MessageType.PING.value:
             await self.sio.emit('message', {
                 'type': MessageType.PONG.value,
@@ -189,6 +194,35 @@ class LibLockerServer:
         # Останавливаем сессию для этого клиента
         logger.info(f"Stopping session for client {client_id} by user request")
         await self.stop_session(client_id)
+
+    async def _handle_installation_alert(self, sid: str, data: dict):
+        """Обработка уведомления об обнаружении установки программы на клиенте"""
+        reason = data.get('reason', 'Неизвестная причина')
+        timestamp = data.get('timestamp', datetime.now().isoformat())
+        
+        # Получаем информацию о клиенте
+        client_info = self.connected_clients.get(sid, {})
+        client_name = client_info.get('name', 'Неизвестный клиент')
+        client_id = client_info.get('client_id', 'N/A')
+        
+        logger.critical(f"INSTALLATION ALERT from client {client_name} (ID: {client_id}): {reason}")
+        
+        # Вызываем callback если установлен
+        if self.on_installation_alert:
+            try:
+                # Передаем информацию о клиенте и причине
+                alert_data = {
+                    'client_id': client_id,
+                    'client_name': client_name,
+                    'reason': reason,
+                    'timestamp': timestamp
+                }
+                if asyncio.iscoroutinefunction(self.on_installation_alert):
+                    await self.on_installation_alert(alert_data)
+                else:
+                    self.on_installation_alert(alert_data)
+            except Exception as e:
+                logger.error(f"Error calling installation alert callback: {e}", exc_info=True)
 
     async def _handle_disconnect(self, sid: str):
         """Обработка отключения клиента"""
