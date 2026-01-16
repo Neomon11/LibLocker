@@ -20,10 +20,11 @@ logger = logging.getLogger(__name__)
 class LibLockerServer:
     """Основной класс сервера LibLocker"""
 
-    def __init__(self, host: str = "0.0.0.0", port: int = 8765, db_path: str = "data/liblocker.db"):
+    def __init__(self, host: str = "0.0.0.0", port: int = 8765, db_path: str = "data/liblocker.db", config=None):
         self.host = host
         self.port = port
         self.db = Database(db_path)
+        self.config = config  # Добавляем ссылку на конфигурацию сервера
 
         # WebSocket сервер
         self.sio = socketio.AsyncServer(
@@ -459,13 +460,18 @@ class LibLockerServer:
             logger.error(f"Client {client_id} not connected")
             return False
 
-        # Отправляем команду клиенту
+        # Получаем настройки из конфигурации сервера
+        alert_volume = 80  # Значение по умолчанию
+        if self.config:
+            alert_volume = self.config.installation_monitor_alert_volume
+
+        # Отправляем команду клиенту с настройками с сервера
         from ..shared.protocol import InstallationMonitorToggleMessage
 
-        toggle_msg = InstallationMonitorToggleMessage(enabled=enabled)
+        toggle_msg = InstallationMonitorToggleMessage(enabled=enabled, alert_volume=alert_volume)
         await self.sio.emit('message', toggle_msg.to_message().to_dict(), room=client_sid)
 
-        logger.info(f"Installation monitor toggle sent to client {client_id}")
+        logger.info(f"Installation monitor toggle sent to client {client_id} (volume: {alert_volume})")
         return True
 
     def get_connected_clients(self) -> list:

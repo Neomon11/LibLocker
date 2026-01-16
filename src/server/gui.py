@@ -662,7 +662,7 @@ class MainWindow(QMainWindow):
         # Инициализация
         self.db = Database()
         self.config = ServerConfig()
-        self.server = LibLockerServer()
+        self.server = LibLockerServer(config=self.config)
         self.server_thread = None
 
         # Таймеры
@@ -937,6 +937,22 @@ class MainWindow(QMainWindow):
 
         network_group.setLayout(network_layout)
         layout.addWidget(network_group)
+
+        # Группа настроек мониторинга установки программ
+        installation_monitor_group = QGroupBox("Модуль мониторинга установки программ (синхронизируется на все клиенты)")
+        installation_monitor_layout = QFormLayout()
+
+        self.installation_monitor_enabled_check = QCheckBox("Включить мониторинг установки программ по умолчанию")
+        installation_monitor_layout.addRow("", self.installation_monitor_enabled_check)
+
+        self.installation_alert_volume_spin = QSpinBox()
+        self.installation_alert_volume_spin.setRange(0, 100)
+        self.installation_alert_volume_spin.setValue(80)
+        self.installation_alert_volume_spin.setSuffix(" %")
+        installation_monitor_layout.addRow("Громкость сирены:", self.installation_alert_volume_spin)
+
+        installation_monitor_group.setLayout(installation_monitor_layout)
+        layout.addWidget(installation_monitor_group)
 
         # Кнопка сохранения общих настроек
         self.btn_save_settings = QPushButton("Сохранить настройки")
@@ -1331,6 +1347,10 @@ class MainWindow(QMainWindow):
             self.config.set('server', 'port', str(self.port_spin.value()))
             self.config.set('server', 'web_port', str(self.web_port_spin.value()))
 
+            # Сохранение настроек модуля антиустановки
+            self.config.set('installation_monitor', 'enabled', str(self.installation_monitor_enabled_check.isChecked()).lower())
+            self.config.set('installation_monitor', 'alert_volume', str(self.installation_alert_volume_spin.value()))
+
             self.config.save()
             QMessageBox.information(self, "Успех", "Настройки сохранены\n\nСетевые настройки вступят в силу после перезапуска сервера.")
             logger.info("Settings saved successfully")
@@ -1346,6 +1366,8 @@ class MainWindow(QMainWindow):
             self.rounding_spin.setValue(self.config.rounding_minutes)
             self.port_spin.setValue(self.config.port)
             self.web_port_spin.setValue(self.config.web_port)
+            self.installation_monitor_enabled_check.setChecked(self.config.installation_monitor_enabled)
+            self.installation_alert_volume_spin.setValue(self.config.installation_monitor_alert_volume)
             logger.info("Settings loaded successfully")
         except Exception as e:
             logger.error(f"Error loading settings: {e}")

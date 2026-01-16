@@ -151,6 +151,7 @@ class ClientSessionStopRequestMessage:
 class InstallationMonitorToggleMessage:
     """Сообщение включения/выключения мониторинга установки"""
     enabled: bool
+    alert_volume: int = 80  # Громкость сирены (0-100)
 
     def to_message(self) -> Message:
         return Message(
