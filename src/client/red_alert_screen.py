@@ -9,8 +9,22 @@ from pathlib import Path
 from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QLabel
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QColor, QPalette
-from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
-from PyQt6.QtCore import QUrl
+
+try:
+    from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
+    from PyQt6.QtCore import QUrl
+    MULTIMEDIA_AVAILABLE = True
+except ImportError:
+    MULTIMEDIA_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("PyQt6.QtMultimedia not available, audio will not play")
+
+# Windows-specific imports for volume control
+try:
+    import winsound
+    WINSOUND_AVAILABLE = True
+except ImportError:
+    WINSOUND_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +161,10 @@ class RedAlertLockScreen(QMainWindow):
     
     def setup_audio(self):
         """Настройка аудио-плеера"""
+        if not MULTIMEDIA_AVAILABLE:
+            logger.warning("Multimedia not available, skipping audio setup")
+            return
+        
         try:
             # Создаем временный файл для аудио
             load_siren_audio()
@@ -182,34 +200,47 @@ class RedAlertLockScreen(QMainWindow):
     def start_siren(self):
         """Запуск воспроизведения сирены"""
         try:
-            if self.media_player:
-                # Устанавливаем системную громкость (Windows)
-                try:
-                    if sys.platform == 'win32':
-                        from ctypes import cast, POINTER
-                        from comtypes import CLSCTX_ALL
-                        from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
-                        
-                        devices = AudioUtilities.GetSpeakers()
-                        interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
-                        volume = cast(interface, POINTER(IAudioEndpointVolume))
-                        
-                        # Устанавливаем системную громкость
-                        volume.SetMasterVolumeLevelScalar(self.alert_volume / 100.0, None)
-                        logger.info(f"System volume set to {self.alert_volume}%")
-                except Exception as e:
-                    logger.warning(f"Could not set system volume: {e}")
-                
+            # Устанавливаем системную громкость (Windows)
+            try:
+                if sys.platform == 'win32':
+                    from ctypes import cast, POINTER
+                    from comtypes import CLSCTX_ALL
+                    from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+                    
+                    devices = AudioUtilities.GetSpeakers()
+                    interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+                    volume = cast(interface, POINTER(IAudioEndpointVolume))
+                    
+                    # Устанавливаем системную громкость
+                    volume.SetMasterVolumeLevelScalar(self.alert_volume / 100.0, None)
+                    logger.info(f"System volume set to {self.alert_volume}%")
+            except Exception as e:
+                logger.warning(f"Could not set system volume: {e}")
+            
+            # Воспроизводим звук
+            if MULTIMEDIA_AVAILABLE and self.media_player:
                 # Зацикливаем воспроизведение
                 self.media_player.mediaStatusChanged.connect(self._on_media_status_changed)
                 self.media_player.play()
-                logger.info("Siren started playing")
+                logger.info("Siren started playing (PyQt6.QtMultimedia)")
+            elif WINSOUND_AVAILABLE:
+                # Fallback to winsound
+                logger.info("Using winsound for alert")
+                # Play system sound repeatedly in a timer
+                self.sound_timer = QTimer()
+                self.sound_timer.timeout.connect(lambda: winsound.MessageBeep(winsound.MB_ICONEXCLAMATION))
+                self.sound_timer.start(500)
+            else:
+                logger.warning("No audio playback available")
         
         except Exception as e:
             logger.error(f"Error starting siren: {e}", exc_info=True)
     
     def _on_media_status_changed(self, status):
         """Обработка изменения статуса медиа для зацикливания"""
+        if not MULTIMEDIA_AVAILABLE:
+            return
+        
         from PyQt6.QtMultimedia import QMediaPlayer
         
         if status == QMediaPlayer.MediaStatus.EndOfMedia:
@@ -230,8 +261,11 @@ class RedAlertLockScreen(QMainWindow):
     def closeEvent(self, event):
         """Блокировка закрытия окна"""
         # Останавливаем аудио при закрытии
-        if self.media_player:
+        if MULTIMEDIA_AVAILABLE and self.media_player:
             self.media_player.stop()
+        
+        if hasattr(self, 'sound_timer') and self.sound_timer:
+            self.sound_timer.stop()
         
         if self.blink_timer:
             self.blink_timer.stop()
