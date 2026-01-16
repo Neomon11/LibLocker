@@ -933,6 +933,14 @@ class MainClientWindow(QMainWindow):
         # Разделитель
         tray_menu.addSeparator()
         
+        # Действие "Поиск сервера"
+        discover_action = QAction("🔍 Поиск сервера...", self)
+        discover_action.triggered.connect(self.show_server_discovery)
+        tray_menu.addAction(discover_action)
+        
+        # Разделитель
+        tray_menu.addSeparator()
+        
         # Действие "Закрыть клиент" (с проверкой пароля)
         exit_action = QAction("Закрыть клиент", self)
         exit_action.triggered.connect(self.exit_with_password_check)
@@ -960,6 +968,40 @@ class MainClientWindow(QMainWindow):
         self.show()
         self.raise_()
         self.activateWindow()
+    
+    def show_server_discovery(self):
+        """Показать диалог поиска сервера"""
+        from .discovery_dialog import show_server_discovery_dialog
+        
+        # Получаем текущий URL
+        current_url = self.config.server_url
+        if hasattr(self.client_thread, 'server_url'):
+            current_url = self.client_thread.server_url
+        
+        # Показываем диалог
+        new_url = show_server_discovery_dialog(self, current_url)
+        
+        if new_url and new_url != current_url:
+            # Пользователь выбрал новый сервер
+            reply = QMessageBox.question(
+                self,
+                "Изменить сервер",
+                f"Переподключиться к серверу:\n{new_url}?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            
+            if reply == QMessageBox.StandardButton.Yes:
+                # Сохраняем новый URL в конфиг
+                self.config.set('server', 'url', new_url)
+                self.config.save()
+                
+                # Уведомляем пользователя о необходимости перезапуска
+                QMessageBox.information(
+                    self,
+                    "Перезапуск требуется",
+                    "Для подключения к новому серверу необходимо перезапустить клиент.\n"
+                    "Пожалуйста, закройте и снова запустите приложение."
+                )
 
     def exit_with_password_check(self):
         """Выход из приложения с проверкой пароля администратора"""
