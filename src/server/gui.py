@@ -653,6 +653,9 @@ class DetailedClientStatisticsDialog(QDialog):
 
 class MainWindow(QMainWindow):
     """Главное окно серверного приложения"""
+    
+    # Сигнал для уведомления об установке (можно вызывать из другого потока)
+    installation_alert_received = pyqtSignal(dict)
 
     def __init__(self):
         super().__init__()
@@ -669,6 +672,12 @@ class MainWindow(QMainWindow):
         self.update_timer = QTimer()
         self.update_timer.timeout.connect(self.update_clients_table)
         self.update_timer.start(1000)  # Обновление каждую секунду
+        
+        # Подключаем сигнал установки к обработчику
+        self.installation_alert_received.connect(self.show_installation_alert, Qt.ConnectionType.QueuedConnection)
+        
+        # Устанавливаем callback для сервера
+        self.server.on_installation_alert = self.on_installation_alert_from_server
 
         self.init_ui()
         self.load_settings()
@@ -1585,6 +1594,64 @@ class MainWindow(QMainWindow):
             event.accept()
         else:
             event.ignore()
+
+    def on_installation_alert_from_server(self, alert_data: dict):
+        """Обработчик уведомления об установке от сервера (вызывается из потока сервера)"""
+        logger.critical(f"Installation alert received in GUI: {alert_data}")
+        # Используем сигнал для потокобезопасной передачи в главный поток
+        self.installation_alert_received.emit(alert_data)
+    
+    def show_installation_alert(self, alert_data: dict):
+        """Показать критическое уведомление об обнаружении установки (вызывается в главном потоке)"""
+        client_name = alert_data.get('client_name', 'Неизвестный клиент')
+        client_id = alert_data.get('client_id', 'N/A')
+        reason = alert_data.get('reason', 'Неизвестная причина')
+        timestamp = alert_data.get('timestamp', '')
+        
+        # Создаем критическое окно предупреждения
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Icon.Critical)
+        msg.setWindowTitle("🚨 КРИТИЧЕСКОЕ ПРЕДУПРЕЖДЕНИЕ - ОБНАРУЖЕНА УСТАНОВКА ПРОГРАММЫ")
+        
+        msg.setText(
+            f"⚠️ ВНИМАНИЕ! ОБНАРУЖЕНА ПОПЫТКА УСТАНОВКИ ПРОГРАММЫ!\n\n"
+            f"Клиент: {client_name} (ID: {client_id})\n"
+            f"Причина: {reason}\n"
+            f"Время: {timestamp}\n\n"
+            f"Клиент был автоматически заблокирован красным экраном тревоги."
+        )
+        
+        msg.setInformativeText(
+            "Рекомендуется немедленно связаться с пользователем данного компьютера "
+            "и выяснить причину установки программного обеспечения."
+        )
+        
+        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Dialog)
+        
+        # Делаем окно большим и заметным
+        msg.setStyleSheet("""
+            QMessageBox {
+                background-color: #ffebee;
+            }
+            QLabel {
+                font-size: 14px;
+            }
+        """)
+        
+        # Проигрываем системный звук критической ошибки
+        try:
+            import winsound
+            winsound.MessageBeep(winsound.MB_ICONHAND)
+        except Exception:
+            pass
+        
+        # Поднимаем окно на передний план и активируем его
+        self.activateWindow()
+        self.raise_()
+        
+        # Показываем модальное окно
+        msg.exec()
 
 
 def main():
