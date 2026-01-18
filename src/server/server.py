@@ -13,6 +13,7 @@ from aiohttp import web
 from ..shared.protocol import Message, MessageType
 from ..shared.models import Client, ClientStatus
 from ..shared.database import Database, ClientModel, SessionModel
+from ..shared.discovery import ServerAnnouncer
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,9 @@ class LibLockerServer:
 
         # Callback для обработки уведомлений об установке
         self.on_installation_alert: Optional[Callable] = None
+
+        # Объявление сервера в сети для автоматического обнаружения
+        self.announcer = ServerAnnouncer(port=self.port, name="LibLocker Server")
 
         # Регистрация обработчиков событий
         self._register_handlers()
@@ -617,6 +621,10 @@ class LibLockerServer:
     async def run(self):
         """Запуск сервера"""
         logger.info(f"Starting LibLocker Server on {self.host}:{self.port}")
+        
+        # Запускаем анонсирование сервера для автоматического обнаружения
+        self.announcer.start()
+        
         runner = web.AppRunner(self.app)
         await runner.setup()
         site = web.TCPSite(runner, self.host, self.port)
@@ -629,6 +637,8 @@ class LibLockerServer:
         except KeyboardInterrupt:
             logger.info("Server shutting down...")
         finally:
+            # Останавливаем анонсирование
+            self.announcer.stop()
             await runner.cleanup()
             self.db.close()
 
