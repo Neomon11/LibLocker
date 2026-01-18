@@ -142,7 +142,7 @@ async def test_installation_alert_handler():
         # Cleanup
         try:
             os.unlink(db_path)
-        except:
+        except (OSError, FileNotFoundError):
             pass
 
 

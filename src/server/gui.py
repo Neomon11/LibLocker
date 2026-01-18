@@ -1670,7 +1670,7 @@ class MainWindow(QMainWindow):
 
     def export_to_pdf(self):
         """Экспорт отчета в PDF"""
-        # TODO: Реализовать экспорт в PDF
+        # NOTE: PDF export is a planned future enhancement
         QMessageBox.information(self, "Информация", "Функция экспорта в разработке")
 
     def clear_all_statistics(self):

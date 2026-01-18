@@ -5,6 +5,7 @@ import os
 import sys
 import logging
 import base64
+import threading
 from pathlib import Path
 from datetime import datetime
 from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QDialog, QLineEdit, QPushButton, QMessageBox
@@ -32,31 +33,42 @@ except ImportError:
 
 # Встроенный аудио-файл сирены (base64 для встраивания в программу)
 SIREN_AUDIO_BASE64 = None  # Будет загружен при первом использовании
+_siren_audio_lock = threading.Lock()  # Lock для потокобезопасной загрузки
 
 
 def load_siren_audio():
-    """Загрузка аудио-файла сирены"""
+    """Загрузка аудио-файла сирены (потокобезопасная)"""
     global SIREN_AUDIO_BASE64
     
+    # Быстрая проверка без блокировки
     if SIREN_AUDIO_BASE64 is not None:
         return SIREN_AUDIO_BASE64
     
-    # Путь к файлу сирены
-    siren_path = Path(__file__).parent.parent.parent / "siren.wav"
-    
-    try:
-        if siren_path.exists():
-            with open(siren_path, 'rb') as f:
-                SIREN_AUDIO_BASE64 = base64.b64encode(f.read()).decode('utf-8')
-                logger.info(f"Siren audio loaded from {siren_path}")
-        else:
-            logger.error(f"Siren audio file not found: {siren_path}")
+    # Блокируем для загрузки
+    with _siren_audio_lock:
+        # Повторная проверка после получения блокировки
+        if SIREN_AUDIO_BASE64 is not None:
+            return SIREN_AUDIO_BASE64
+        
+        # Путь к файлу сирены
+        siren_path = Path(__file__).parent.parent.parent / "siren.wav"
+        
+        try:
+            if siren_path.exists():
+                with open(siren_path, 'rb') as f:
+                    SIREN_AUDIO_BASE64 = base64.b64encode(f.read()).decode('utf-8')
+                    logger.info(f"Siren audio loaded from {siren_path}")
+            else:
+                logger.warning(f"Siren audio file not found: {siren_path}")
+                SIREN_AUDIO_BASE64 = ""
+        except (IOError, OSError, PermissionError) as e:
+            logger.error(f"Error loading siren audio: {e}", exc_info=True)
             SIREN_AUDIO_BASE64 = ""
-    except Exception as e:
-        logger.error(f"Error loading siren audio: {e}", exc_info=True)
-        SIREN_AUDIO_BASE64 = ""
-    
-    return SIREN_AUDIO_BASE64
+        except Exception as e:
+            logger.critical(f"Unexpected error loading siren audio: {e}", exc_info=True)
+            SIREN_AUDIO_BASE64 = ""
+        
+        return SIREN_AUDIO_BASE64
 
 
 class RedAlertLockScreen(QMainWindow):

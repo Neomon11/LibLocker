@@ -89,11 +89,19 @@ class ServerConfig(Config):
 
     @property
     def port(self) -> int:
-        return self.get_int('server', 'port', 8765)
+        port = self.get_int('server', 'port', 8765)
+        if not (1 <= port <= 65535):
+            logger.warning(f"Invalid port {port}, using default 8765")
+            return 8765
+        return port
 
     @property
     def web_port(self) -> int:
-        return self.get_int('server', 'web_port', 8080)
+        port = self.get_int('server', 'web_port', 8080)
+        if not (1 <= port <= 65535):
+            logger.warning(f"Invalid web_port {port}, using default 8080")
+            return 8080
+        return port
 
     @property
     def database_path(self) -> str:
