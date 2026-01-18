@@ -6,7 +6,7 @@ import os
 from datetime import datetime
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Enum
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import sessionmaker, relationship, Session
 import enum
 
 Base = declarative_base()
@@ -126,7 +126,7 @@ class Database:
                 
                 conn.commit()
     
-    def get_session(self) -> 'sessionmaker':
+    def get_session(self) -> Session:
         """Получить сессию БД"""
         return self.Session()
 

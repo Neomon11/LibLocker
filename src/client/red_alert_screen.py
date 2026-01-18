@@ -59,10 +59,13 @@ def load_siren_audio():
                     SIREN_AUDIO_BASE64 = base64.b64encode(f.read()).decode('utf-8')
                     logger.info(f"Siren audio loaded from {siren_path}")
             else:
-                logger.error(f"Siren audio file not found: {siren_path}")
+                logger.warning(f"Siren audio file not found: {siren_path}")
                 SIREN_AUDIO_BASE64 = ""
-        except Exception as e:
+        except (IOError, OSError, PermissionError) as e:
             logger.error(f"Error loading siren audio: {e}", exc_info=True)
+            SIREN_AUDIO_BASE64 = ""
+        except Exception as e:
+            logger.critical(f"Unexpected error loading siren audio: {e}", exc_info=True)
             SIREN_AUDIO_BASE64 = ""
         
         return SIREN_AUDIO_BASE64
