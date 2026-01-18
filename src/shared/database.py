@@ -126,11 +126,11 @@ class Database:
                 
                 conn.commit()
     
-    def get_session(self):
+    def get_session(self) -> 'sessionmaker':
         """Получить сессию БД"""
         return self.Session()
 
-    def close(self):
+    def close(self) -> None:
         """Закрыть соединение"""
         self.engine.dispose()
 

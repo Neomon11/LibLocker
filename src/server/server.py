@@ -179,7 +179,8 @@ class LibLockerServer:
     async def _handle_session_sync(self, sid: str, data: dict):
         """Обработка синхронизации сессии (для автономного режима)"""
         logger.info(f"Session sync from {sid}: {data}")
-        # TODO: Реализовать синхронизацию автономных сессий
+        # NOTE: Offline session synchronization is a planned future enhancement
+        # Currently, sessions are managed in real-time only
 
     async def _handle_client_session_stop_request(self, sid: str, data: dict):
         """Обработка запроса остановки сессии от клиента"""
