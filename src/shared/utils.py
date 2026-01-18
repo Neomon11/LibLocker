@@ -57,14 +57,20 @@ class SingleInstanceChecker:
             # Пытаемся открыть файл в эксклюзивном режиме
             import msvcrt
             self.lock_fd = open(self.lock_file, 'w')
-            msvcrt.locking(self.lock_fd.fileno(), msvcrt.LK_NBLCK, 1)
-            # Записываем PID
-            self.lock_fd.write(str(os.getpid()))
-            self.lock_fd.flush()
-            self._locked = True
-            return False
+            try:
+                msvcrt.locking(self.lock_fd.fileno(), msvcrt.LK_NBLCK, 1)
+                # Записываем PID
+                self.lock_fd.write(str(os.getpid()))
+                self.lock_fd.flush()
+                self._locked = True
+                return False
+            except (IOError, OSError):
+                # Не удалось заблокировать - закрываем и возвращаем True
+                self.lock_fd.close()
+                self.lock_fd = None
+                return True
         except (IOError, OSError):
-            # Файл уже заблокирован другим процессом
+            # Не удалось открыть файл
             if self.lock_fd:
                 try:
                     self.lock_fd.close()
@@ -79,16 +85,22 @@ class SingleInstanceChecker:
             import fcntl
             # Открываем файл для чтения/записи, создаем если не существует
             self.lock_fd = open(self.lock_file, 'w')
-            # Пытаемся получить эксклюзивную блокировку без ожидания
-            fcntl.flock(self.lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            # Записываем PID
-            self.lock_fd.truncate(0)
-            self.lock_fd.write(str(os.getpid()))
-            self.lock_fd.flush()
-            self._locked = True
-            return False
-        except (IOError, OSError, BlockingIOError) as e:
-            # Файл уже заблокирован другим процессом
+            try:
+                # Пытаемся получить эксклюзивную блокировку без ожидания
+                fcntl.flock(self.lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                # Записываем PID
+                self.lock_fd.truncate(0)
+                self.lock_fd.write(str(os.getpid()))
+                self.lock_fd.flush()
+                self._locked = True
+                return False
+            except (IOError, OSError, BlockingIOError):
+                # Не удалось заблокировать - закрываем и возвращаем True
+                self.lock_fd.close()
+                self.lock_fd = None
+                return True
+        except (IOError, OSError, BlockingIOError):
+            # Не удалось открыть файл
             if self.lock_fd:
                 try:
                     self.lock_fd.close()
@@ -127,6 +139,9 @@ def get_hwid() -> str:
     Генерация уникального идентификатора оборудования (HWID)
     Основан на UUID машины и серийных номерах оборудования
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         # Для Windows используем UUID узла и имя компьютера
         if platform.system() == 'Windows':
@@ -149,6 +164,7 @@ def get_hwid() -> str:
             return hashlib.sha256(str(uuid.getnode()).encode()).hexdigest()
     except Exception as e:
         # Fallback на MAC-адрес
+        logger.warning(f"Failed to get hardware HWID (using WMI), falling back to MAC address: {e}")
         return hashlib.sha256(str(uuid.getnode()).encode()).hexdigest()
 
 

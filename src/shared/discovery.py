@@ -215,8 +215,8 @@ class ServerAnnouncer:
             if self.sock:
                 try:
                     self.sock.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Error closing socket in announcer: {e}")
 
 
 def scan_network_for_servers(start_ip: str = None, timeout: float = 0.5, max_ips: int = 254) -> List[ServerInfo]:
