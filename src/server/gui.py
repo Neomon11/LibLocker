@@ -347,21 +347,48 @@ class DetailedClientStatisticsDialog(QDialog):
 
         # Сводка
         summary_group = QGroupBox("Сводка")
-        summary_layout = QHBoxLayout()
-
+        summary_layout = QVBoxLayout()
+        
+        # Первая строка метрик
+        summary_row1 = QHBoxLayout()
         self.total_sessions_label = QLabel("Сессий: 0")
         self.total_sessions_label.setStyleSheet("font-size: 14px; font-weight: bold; padding: 10px;")
-        summary_layout.addWidget(self.total_sessions_label)
+        summary_row1.addWidget(self.total_sessions_label)
 
+        self.active_sessions_label = QLabel("Активных: 0")
+        self.active_sessions_label.setStyleSheet("font-size: 14px; font-weight: bold; padding: 10px;")
+        summary_row1.addWidget(self.active_sessions_label)
+
+        self.completed_sessions_label = QLabel("Завершенных: 0")
+        self.completed_sessions_label.setStyleSheet("font-size: 14px; font-weight: bold; padding: 10px;")
+        summary_row1.addWidget(self.completed_sessions_label)
+        summary_row1.addStretch()
+        summary_layout.addLayout(summary_row1)
+        
+        # Вторая строка метрик
+        summary_row2 = QHBoxLayout()
         self.total_time_label = QLabel("Общее время: 0 мин")
         self.total_time_label.setStyleSheet("font-size: 14px; font-weight: bold; padding: 10px;")
-        summary_layout.addWidget(self.total_time_label)
+        summary_row2.addWidget(self.total_time_label)
 
+        self.avg_time_label = QLabel("Средн. время: 0 мин")
+        self.avg_time_label.setStyleSheet("font-size: 14px; font-weight: bold; padding: 10px;")
+        summary_row2.addWidget(self.avg_time_label)
+        summary_row2.addStretch()
+        summary_layout.addLayout(summary_row2)
+        
+        # Третья строка метрик
+        summary_row3 = QHBoxLayout()
         self.total_cost_label = QLabel("Общая стоимость: 0.00 руб")
         self.total_cost_label.setStyleSheet("font-size: 14px; font-weight: bold; padding: 10px;")
-        summary_layout.addWidget(self.total_cost_label)
+        summary_row3.addWidget(self.total_cost_label)
 
-        summary_layout.addStretch()
+        self.avg_cost_label = QLabel("Средн. стоимость: 0.00 руб")
+        self.avg_cost_label.setStyleSheet("font-size: 14px; font-weight: bold; padding: 10px;")
+        summary_row3.addWidget(self.avg_cost_label)
+        summary_row3.addStretch()
+        summary_layout.addLayout(summary_row3)
+
         summary_group.setLayout(summary_layout)
         layout.addWidget(summary_group)
 
@@ -468,6 +495,8 @@ class DetailedClientStatisticsDialog(QDialog):
             self.sessions_table.setRowCount(len(sessions))
             
             total_sessions = len(sessions)
+            active_sessions = 0
+            completed_sessions = 0
             total_duration = 0
             total_cost = 0.0
             
@@ -487,11 +516,25 @@ class DetailedClientStatisticsDialog(QDialog):
                 cost = session.cost if session.cost else 0.0
                 self.sessions_table.setItem(row, 4, QTableWidgetItem(f"{cost:.2f}"))
                 total_cost += cost
+                
+                # Подсчет статусов
+                if session.status == 'active':
+                    active_sessions += 1
+                elif session.status == 'completed':
+                    completed_sessions += 1
+            
+            # Вычисляем средние значения
+            avg_duration = total_duration / total_sessions if total_sessions > 0 else 0
+            avg_cost = total_cost / total_sessions if total_sessions > 0 else 0
             
             # Обновляем сводку
             self.total_sessions_label.setText(f"Сессий: {total_sessions}")
+            self.active_sessions_label.setText(f"Активных: {active_sessions}")
+            self.completed_sessions_label.setText(f"Завершенных: {completed_sessions}")
             self.total_time_label.setText(f"Общее время: {total_duration} мин ({total_duration // 60} ч {total_duration % 60} мин)")
+            self.avg_time_label.setText(f"Средн. время: {avg_duration:.1f} мин")
             self.total_cost_label.setText(f"Общая стоимость: {total_cost:.2f} руб")
+            self.avg_cost_label.setText(f"Средн. стоимость: {avg_cost:.2f} руб")
             
         except Exception as e:
             logger.error(f"Error updating client statistics: {e}")
@@ -548,9 +591,13 @@ class DetailedClientStatisticsDialog(QDialog):
             # Сводная информация
             summary_data = [
                 ['Метрика', 'Значение'],
-                ['Количество сессий', self.total_sessions_label.text().split(': ')[1]],
+                ['Всего сессий', self.total_sessions_label.text().split(': ')[1]],
+                ['Активных сессий', self.active_sessions_label.text().split(': ')[1]],
+                ['Завершенных сессий', self.completed_sessions_label.text().split(': ')[1]],
                 ['Общее время', self.total_time_label.text().split(': ')[1]],
-                ['Общая стоимость', self.total_cost_label.text().split(': ')[1]]
+                ['Среднее время', self.avg_time_label.text().split(': ')[1]],
+                ['Общая стоимость', self.total_cost_label.text().split(': ')[1]],
+                ['Средняя стоимость', self.avg_cost_label.text().split(': ')[1]]
             ]
             
             summary_table = Table(summary_data, colWidths=[3*inch, 3*inch])
@@ -797,9 +844,9 @@ class MainWindow(QMainWindow):
         by_client_layout = QVBoxLayout(by_client_widget)
         
         self.client_stats_table = QTableWidget()
-        self.client_stats_table.setColumnCount(5)
+        self.client_stats_table.setColumnCount(7)
         self.client_stats_table.setHorizontalHeaderLabels([
-            "Клиент", "Количество сессий", "Общее время (мин)", "Средняя длительность (мин)", "Общая стоимость (руб)"
+            "Клиент", "Всего сессий", "Активных", "Общее время (мин)", "Средн. время (мин)", "Средн. стоимость", "Общая стоимость (руб)"
         ])
         self.client_stats_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.client_stats_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -1134,19 +1181,24 @@ class MainWindow(QMainWindow):
             for row, client in enumerate(clients):
                 # Получаем все сессии клиента
                 sessions = db_session.query(SessionModel).filter_by(client_id=client.id).all()
+                active_sessions = [s for s in sessions if s.status == 'active']
                 
                 # Подсчитываем статистику с обработкой None значений
                 total_sessions = len(sessions)
+                active_count = len(active_sessions)
                 total_duration = sum(s.actual_duration or 0 for s in sessions)
                 total_cost = sum(s.cost or 0 for s in sessions)
                 avg_duration = total_duration / total_sessions if total_sessions > 0 else 0
+                avg_cost = total_cost / total_sessions if total_sessions > 0 else 0
                 
                 # Заполняем таблицу
                 self.client_stats_table.setItem(row, 0, QTableWidgetItem(client.name))
                 self.client_stats_table.setItem(row, 1, QTableWidgetItem(str(total_sessions)))
-                self.client_stats_table.setItem(row, 2, QTableWidgetItem(f"{total_duration:.0f}"))
-                self.client_stats_table.setItem(row, 3, QTableWidgetItem(f"{avg_duration:.1f}"))
-                self.client_stats_table.setItem(row, 4, QTableWidgetItem(f"{total_cost:.2f}"))
+                self.client_stats_table.setItem(row, 2, QTableWidgetItem(str(active_count)))
+                self.client_stats_table.setItem(row, 3, QTableWidgetItem(f"{total_duration:.0f}"))
+                self.client_stats_table.setItem(row, 4, QTableWidgetItem(f"{avg_duration:.1f}"))
+                self.client_stats_table.setItem(row, 5, QTableWidgetItem(f"{avg_cost:.2f}"))
+                self.client_stats_table.setItem(row, 6, QTableWidgetItem(f"{total_cost:.2f}"))
                 
                 # Сохраняем ID клиента в первом элементе строки для последующего использования
                 item = self.client_stats_table.item(row, 0)
@@ -1670,8 +1722,171 @@ class MainWindow(QMainWindow):
 
     def export_to_pdf(self):
         """Экспорт отчета в PDF"""
-        # NOTE: PDF export is a planned future enhancement
-        QMessageBox.information(self, "Информация", "Функция экспорта в разработке")
+        try:
+            from reportlab.lib.pagesizes import A4, landscape
+            from reportlab.lib import colors
+            from reportlab.lib.units import inch
+            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            import os
+            
+            # Генерируем имя файла
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"statistics_all_{timestamp}.pdf"
+            
+            # Создаем PDF в альбомной ориентации для больших таблиц
+            doc = SimpleDocTemplate(filename, pagesize=landscape(A4))
+            elements = []
+            styles = getSampleStyleSheet()
+            
+            # Заголовок
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                parent=styles['Heading1'],
+                fontSize=20,
+                textColor=colors.HexColor('#2c3e50'),
+                spaceAfter=30,
+                alignment=1  # Center
+            )
+            
+            title = Paragraph("Общая статистика LibLocker", title_style)
+            elements.append(title)
+            elements.append(Spacer(1, 12))
+            
+            # Дата генерации отчета
+            date_text = f"Отчет сгенерирован: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            date_para = Paragraph(date_text, styles['Normal'])
+            elements.append(date_para)
+            elements.append(Spacer(1, 20))
+            
+            # Получаем данные из БД
+            db_session = self.db.get_session()
+            try:
+                # Общая статистика
+                all_sessions = db_session.query(SessionModel).all()
+                all_clients = db_session.query(ClientModel).all()
+                
+                total_sessions = len(all_sessions)
+                total_clients = len(all_clients)
+                total_duration = sum(s.actual_duration or 0 for s in all_sessions)
+                total_cost = sum(s.cost or 0 for s in all_sessions)
+                avg_duration = total_duration / total_sessions if total_sessions > 0 else 0
+                avg_cost = total_cost / total_sessions if total_sessions > 0 else 0
+                active_sessions = len([s for s in all_sessions if s.status == 'active'])
+                
+                # Сводная таблица
+                summary_label = Paragraph("Общая сводка", styles['Heading2'])
+                elements.append(summary_label)
+                elements.append(Spacer(1, 12))
+                
+                summary_data = [
+                    ['Метрика', 'Значение'],
+                    ['Всего клиентов', str(total_clients)],
+                    ['Всего сессий', str(total_sessions)],
+                    ['Активных сессий', str(active_sessions)],
+                    ['Общее время (мин)', f"{total_duration} ({total_duration // 60} ч {total_duration % 60} мин)"],
+                    ['Среднее время сессии (мин)', f"{avg_duration:.1f}"],
+                    ['Общая стоимость (руб)', f"{total_cost:.2f}"],
+                    ['Средняя стоимость сессии (руб)', f"{avg_cost:.2f}"]
+                ]
+                
+                summary_table = Table(summary_data, colWidths=[4*inch, 4*inch])
+                summary_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 12),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('FONTSIZE', (0, 1), (-1, -1), 10)
+                ]))
+                
+                elements.append(summary_table)
+                elements.append(Spacer(1, 20))
+                
+                # Статистика по клиентам
+                clients_label = Paragraph("Статистика по клиентам", styles['Heading2'])
+                elements.append(clients_label)
+                elements.append(Spacer(1, 12))
+                
+                # Данные таблицы клиентов
+                clients_table_data = [['Клиент', 'Всего сессий', 'Активных', 'Время (мин)', 'Средн. время', 'Средн. стоимость', 'Общая стоимость']]
+                
+                for row in range(self.client_stats_table.rowCount()):
+                    row_data = []
+                    for col in range(self.client_stats_table.columnCount()):
+                        item = self.client_stats_table.item(row, col)
+                        row_data.append(item.text() if item else "")
+                    clients_table_data.append(row_data)
+                
+                clients_table = Table(clients_table_data, colWidths=[1.8*inch, 0.9*inch, 0.9*inch, 1*inch, 1*inch, 1.2*inch, 1.2*inch])
+                clients_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 9),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('FONTSIZE', (0, 1), (-1, -1), 8),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey])
+                ]))
+                
+                elements.append(clients_table)
+                elements.append(PageBreak())
+                
+                # Последние сессии
+                sessions_label = Paragraph("Последние сессии (макс. 100)", styles['Heading2'])
+                elements.append(sessions_label)
+                elements.append(Spacer(1, 12))
+                
+                # Данные таблицы сессий
+                sessions_table_data = [['ID', 'Клиент', 'Начало', 'Окончание', 'Длительность', 'Стоимость']]
+                
+                for row in range(min(self.sessions_table.rowCount(), 100)):
+                    row_data = []
+                    for col in range(self.sessions_table.columnCount()):
+                        item = self.sessions_table.item(row, col)
+                        row_data.append(item.text() if item else "")
+                    sessions_table_data.append(row_data)
+                
+                sessions_table = Table(sessions_table_data, colWidths=[0.5*inch, 1.5*inch, 1.8*inch, 1.8*inch, 1.3*inch, 1.3*inch])
+                sessions_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 9),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('FONTSIZE', (0, 1), (-1, -1), 7),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey])
+                ]))
+                
+                elements.append(sessions_table)
+                
+                # Генерируем PDF
+                doc.build(elements)
+                
+                QMessageBox.information(self, "Успех", f"Статистика успешно экспортирована в файл:\n{filename}")
+                logger.info(f"Statistics exported to {filename}")
+                
+            finally:
+                db_session.close()
+                
+        except ImportError:
+            QMessageBox.warning(
+                self, "Ошибка", 
+                "Для экспорта в PDF требуется библиотека reportlab.\n"
+                "Установите её командой: pip install reportlab"
+            )
+        except Exception as e:
+            logger.error(f"Error exporting statistics: {e}", exc_info=True)
+            QMessageBox.critical(self, "Ошибка", f"Не удалось экспортировать статистику:\n{str(e)}")
 
     def clear_all_statistics(self):
         """Очистить всю статистику"""
