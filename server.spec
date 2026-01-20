@@ -12,11 +12,15 @@ a = Analysis(
     binaries=[],
     datas=[
         ('config.example.ini', '.'),
+        ('src/server/web/templates', 'src/server/web/templates'),
+        ('src/server/web/static', 'src/server/web/static'),
     ],
     hiddenimports=[
         'engineio.async_drivers.aiohttp',
         'socketio',
         'aiohttp',
+        'aiohttp_jinja2',
+        'jinja2',
         'PyQt6.QtCore',
         'PyQt6.QtGui',
         'PyQt6.QtWidgets',
