@@ -977,6 +977,10 @@ class MainWindow(QMainWindow):
         self.web_port_spin.setValue(8080)
         network_layout.addRow("Веб-порт:", self.web_port_spin)
 
+        self.web_server_enabled_check = QCheckBox("Включить веб-сервер для управления через браузер")
+        self.web_server_enabled_check.setChecked(False)
+        network_layout.addRow("", self.web_server_enabled_check)
+
         network_group.setLayout(network_layout)
         layout.addWidget(network_group)
 
@@ -1544,6 +1548,7 @@ class MainWindow(QMainWindow):
             # Сохранение сетевых настроек (требует перезапуска)
             self.config.set('server', 'port', str(self.port_spin.value()))
             self.config.set('server', 'web_port', str(self.web_port_spin.value()))
+            self.config.set('server', 'web_server_enabled', str(self.web_server_enabled_check.isChecked()).lower())
 
             # Сохранение настроек модуля антиустановки
             self.config.set('installation_monitor', 'enabled', str(self.installation_monitor_enabled_check.isChecked()).lower())
@@ -1564,6 +1569,7 @@ class MainWindow(QMainWindow):
             self.rounding_spin.setValue(self.config.rounding_minutes)
             self.port_spin.setValue(self.config.port)
             self.web_port_spin.setValue(self.config.web_port)
+            self.web_server_enabled_check.setChecked(self.config.web_server_enabled)
             self.installation_monitor_enabled_check.setChecked(self.config.installation_monitor_enabled)
             self.installation_alert_volume_spin.setValue(self.config.installation_monitor_alert_volume)
             logger.info("Settings loaded successfully")

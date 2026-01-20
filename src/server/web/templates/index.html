@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LibLocker - Панель управления</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 900px;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .login-form {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .error.show {
+            display: block;
+        }
+
+        .dashboard {
+            display: none;
+        }
+
+        .dashboard.show {
+            display: block;
+        }
+
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .toolbar h2 {
+            color: #333;
+            font-size: 24px;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .btn-small:hover {
+            background: #da190b;
+        }
+
+        .clients-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .clients-table th {
+            background: #f5f5f5;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #555;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .clients-table td {
+            padding: 12px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status.online {
+            background: #4caf50;
+            color: white;
+        }
+
+        .status.offline {
+            background: #9e9e9e;
+            color: white;
+        }
+
+        .status.in-session {
+            background: #2196f3;
+            color: white;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-action {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: white;
+            font-weight: 500;
+        }
+
+        .btn-start {
+            background: #4caf50;
+        }
+
+        .btn-start:hover {
+            background: #45a049;
+        }
+
+        .btn-stop {
+            background: #f44336;
+        }
+
+        .btn-stop:hover {
+            background: #da190b;
+        }
+
+        .btn-unlock {
+            background: #ff9800;
+        }
+
+        .btn-unlock:hover {
+            background: #e68900;
+        }
+
+        .no-clients {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 400px;
+            width: 100%;
+            margin: 20px;
+        }
+
+        .modal-content h3 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .modal-buttons button {
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔒 LibLocker</h1>
+            <p>Система управления компьютерами</p>
+        </div>
+
+        <div class="content">
+            <!-- Форма входа -->
+            <div class="login-form" id="loginForm">
+                <div class="error" id="loginError"></div>
+                
+                <div class="form-group">
+                    <label for="password">Пароль администратора</label>
+                    <input type="password" id="password" placeholder="Введите пароль" autocomplete="current-password">
+                </div>
+
+                <button class="btn" id="loginBtn">Войти</button>
+            </div>
+
+            <!-- Панель управления -->
+            <div class="dashboard" id="dashboard">
+                <div class="toolbar">
+                    <h2>Клиенты</h2>
+                    <button class="btn-small" id="logoutBtn">Выйти</button>
+                </div>
+
+                <div id="clientsList">
+                    <div class="no-clients">Загрузка...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно запуска сессии -->
+    <div class="modal" id="startSessionModal">
+        <div class="modal-content">
+            <h3>Запуск сессии</h3>
+            <div class="form-group">
+                <label for="sessionDuration">Длительность (минуты)</label>
+                <input type="number" id="sessionDuration" value="30" min="1">
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="sessionUnlimited">
+                    Безлимитная сессия
+                </label>
+            </div>
+            <div class="modal-buttons">
+                <button class="btn btn-action btn-start" id="confirmStartSession">Запустить</button>
+                <button class="btn-small" id="cancelStartSession">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let authToken = null;
+        let currentClientId = null;
+        let refreshInterval = null;
+
+        // Элементы DOM
+        const loginForm = document.getElementById('loginForm');
+        const dashboard = document.getElementById('dashboard');
+        const loginError = document.getElementById('loginError');
+        const passwordInput = document.getElementById('password');
+        const loginBtn = document.getElementById('loginBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const clientsList = document.getElementById('clientsList');
+        const startSessionModal = document.getElementById('startSessionModal');
+        const sessionDuration = document.getElementById('sessionDuration');
+        const sessionUnlimited = document.getElementById('sessionUnlimited');
+
+        // Вход в систему
+        loginBtn.addEventListener('click', async () => {
+            const password = passwordInput.value;
+            
+            if (!password) {
+                showError('Введите пароль');
+                return;
+            }
+
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Вход...';
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ password })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    authToken = data.token;
+                    showDashboard();
+                    startAutoRefresh();
+                } else {
+                    showError(data.error || 'Неверный пароль');
+                }
+            } catch (error) {
+                showError('Ошибка соединения с сервером');
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Войти';
+            }
+        });
+
+        // Вход по Enter
+        passwordInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                loginBtn.click();
+            }
+        });
+
+        // Выход
+        logoutBtn.addEventListener('click', async () => {
+            await fetch('/api/logout', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
+                }
+            });
+            
+            authToken = null;
+            stopAutoRefresh();
+            showLogin();
+        });
+
+        // Загрузка клиентов
+        async function loadClients() {
+            try {
+                const response = await fetch('/api/clients', {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    renderClients(data.clients);
+                } else if (response.status === 401) {
+                    authToken = null;
+                    showLogin();
+                }
+            } catch (error) {
+                console.error('Error loading clients:', error);
+            }
+        }
+
+        // Отображение клиентов
+        function renderClients(clients) {
+            if (clients.length === 0) {
+                clientsList.innerHTML = '<div class="no-clients">Нет подключенных клиентов</div>';
+                return;
+            }
+
+            let html = '<table class="clients-table"><thead><tr>';
+            html += '<th>Имя</th>';
+            html += '<th>IP адрес</th>';
+            html += '<th>Статус</th>';
+            html += '<th>Сессия</th>';
+            html += '<th>Действия</th>';
+            html += '</tr></thead><tbody>';
+
+            clients.forEach(client => {
+                html += '<tr>';
+                html += `<td>${client.name}</td>`;
+                html += `<td>${client.ip_address || 'N/A'}</td>`;
+                
+                let statusClass = 'offline';
+                let statusText = 'Оффлайн';
+                if (client.status === 'online') {
+                    statusClass = 'online';
+                    statusText = 'Онлайн';
+                } else if (client.status === 'in_session') {
+                    statusClass = 'in-session';
+                    statusText = 'В сессии';
+                }
+                html += `<td><span class="status ${statusClass}">${statusText}</span></td>`;
+                
+                if (client.has_session && client.session_info) {
+                    if (client.session_info.is_unlimited) {
+                        html += '<td>Безлимит</td>';
+                    } else {
+                        html += `<td>${client.session_info.remaining_minutes} мин</td>`;
+                    }
+                } else {
+                    html += '<td>-</td>';
+                }
+                
+                html += '<td><div class="action-buttons">';
+                
+                if (client.status === 'online' || client.status === 'in_session') {
+                    if (!client.has_session) {
+                        html += `<button class="btn-action btn-start" onclick="showStartSessionModal(${client.id})">Запустить</button>`;
+                    } else {
+                        html += `<button class="btn-action btn-stop" onclick="stopSession(${client.id})">Остановить</button>`;
+                    }
+                    html += `<button class="btn-action btn-unlock" onclick="unlockClient(${client.id})">Разблокировать</button>`;
+                }
+                
+                html += '</div></td>';
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            clientsList.innerHTML = html;
+        }
+
+        // Показать модальное окно запуска сессии
+        function showStartSessionModal(clientId) {
+            currentClientId = clientId;
+            sessionDuration.value = 30;
+            sessionUnlimited.checked = false;
+            startSessionModal.classList.add('show');
+        }
+
+        // Запуск сессии
+        document.getElementById('confirmStartSession').addEventListener('click', async () => {
+            const duration = parseInt(sessionDuration.value);
+            const unlimited = sessionUnlimited.checked;
+
+            if (!unlimited && (!duration || duration < 1)) {
+                alert('Укажите корректную длительность');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/start_session', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        client_id: currentClientId,
+                        duration_minutes: unlimited ? 0 : duration,
+                        is_unlimited: unlimited
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    startSessionModal.classList.remove('show');
+                    loadClients();
+                } else {
+                    alert(data.error || 'Ошибка запуска сессии');
+                }
+            } catch (error) {
+                alert('Ошибка соединения с сервером');
+            }
+        });
+
+        document.getElementById('cancelStartSession').addEventListener('click', () => {
+            startSessionModal.classList.remove('show');
+        });
+
+        // Остановка сессии
+        async function stopSession(clientId) {
+            if (!confirm('Остановить сессию?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/stop_session', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({ client_id: clientId })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    loadClients();
+                } else {
+                    alert(data.error || 'Ошибка остановки сессии');
+                }
+            } catch (error) {
+                alert('Ошибка соединения с сервером');
+            }
+        }
+
+        // Разблокировка клиента
+        async function unlockClient(clientId) {
+            if (!confirm('Разблокировать клиент?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/unlock_client', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({ client_id: clientId })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    loadClients();
+                } else {
+                    alert(data.error || 'Ошибка разблокировки');
+                }
+            } catch (error) {
+                alert('Ошибка соединения с сервером');
+            }
+        }
+
+        // Показать ошибку
+        function showError(message) {
+            loginError.textContent = message;
+            loginError.classList.add('show');
+            setTimeout(() => {
+                loginError.classList.remove('show');
+            }, 5000);
+        }
+
+        // Показать панель управления
+        function showDashboard() {
+            loginForm.style.display = 'none';
+            dashboard.classList.add('show');
+            loadClients();
+        }
+
+        // Показать форму входа
+        function showLogin() {
+            loginForm.style.display = 'block';
+            dashboard.classList.remove('show');
+            passwordInput.value = '';
+        }
+
+        // Автообновление
+        function startAutoRefresh() {
+            refreshInterval = setInterval(loadClients, 3000);
+        }
+
+        function stopAutoRefresh() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+                refreshInterval = null;
+            }
+        }
+    </script>
+</body>
+</html>
