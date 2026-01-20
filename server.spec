@@ -12,6 +12,8 @@ a = Analysis(
     binaries=[],
     datas=[
         ('config.example.ini', '.'),
+        ('src/server/web/templates', 'src/server/web/templates'),
+        ('src/server/web/static', 'src/server/web/static'),
     ],
     hiddenimports=[
         'engineio.async_drivers.aiohttp',
