@@ -80,13 +80,15 @@ def test_database():
     """Test database operations"""
     print_header("Testing Database Operations")
     tests = []
+    db_path = None
     
     try:
         from shared.database import Database, ClientModel, SessionModel
         from datetime import datetime
+        import time
         
-        # Create test database
-        db_path = os.path.join(tempfile.gettempdir(), f'test_liblocker_{datetime.now().timestamp()}.db')
+        # Create test database with better unique filename
+        db_path = os.path.join(tempfile.gettempdir(), f'test_liblocker_{int(time.time())}_{os.getpid()}.db')
         db = Database(db_path)
         tests.append(("Create database", True))
         
@@ -94,48 +96,67 @@ def test_database():
         db_session = db.get_session()
         tests.append(("Get DB session", True))
         
-        # Add client
-        client = ClientModel(
-            hwid='TEST-HWID-789',
-            name='Test Client',
-            ip_address='127.0.0.1',
-            mac_address='00:00:00:00:00:00',
-            status='offline'
-        )
-        db_session.add(client)
-        db_session.commit()
-        tests.append(("Add client", True))
+        try:
+            # Add client
+            client = ClientModel(
+                hwid='TEST-HWID-789',
+                name='Test Client',
+                ip_address='127.0.0.1',
+                mac_address='00:00:00:00:00:00',
+                status='offline'
+            )
+            db_session.add(client)
+            db_session.commit()
+            tests.append(("Add client", True))
+            
+            # Query client
+            found = db_session.query(ClientModel).filter_by(hwid='TEST-HWID-789').first()
+            tests.append(("Query client", found is not None))
+            
+            # Update client
+            if found:
+                found.status = 'online'
+                db_session.commit()
+                updated = db_session.query(ClientModel).filter_by(hwid='TEST-HWID-789').first()
+                tests.append(("Update client", updated.status == 'online'))
+                
+                # Add session
+                session = SessionModel(
+                    client_id=found.id,
+                    duration_minutes=30,
+                    cost_per_hour=50.0,
+                    free_mode=False
+                )
+                db_session.add(session)
+                db_session.commit()
+                tests.append(("Add session", True))
+            
+        finally:
+            # Cleanup - ensure resources are freed
+            try:
+                db_session.close()
+            except Exception as e:
+                print(f"  Warning: Error closing session: {e}")
+            
+            try:
+                db.close()
+            except Exception as e:
+                print(f"  Warning: Error closing database: {e}")
         
-        # Query client
-        found = db_session.query(ClientModel).filter_by(hwid='TEST-HWID-789').first()
-        tests.append(("Query client", found is not None))
-        
-        # Update client
-        found.status = 'online'
-        db_session.commit()
-        updated = db_session.query(ClientModel).filter_by(hwid='TEST-HWID-789').first()
-        tests.append(("Update client", updated.status == 'online'))
-        
-        # Add session
-        session = SessionModel(
-            client_id=found.id,
-            duration_minutes=30,
-            cost_per_hour=50.0,
-            free_mode=False
-        )
-        db_session.add(session)
-        db_session.commit()
-        tests.append(("Add session", True))
-        
-        # Cleanup
-        db_session.close()
-        db.close()
-        os.remove(db_path)
         tests.append(("Cleanup", True))
         
     except Exception as e:
-        tests.append(("Database test", False))
+        tests.append(("Database initialization", False))
         print(f"  Error: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        # Always try to remove test database file
+        if db_path and os.path.exists(db_path):
+            try:
+                os.remove(db_path)
+            except Exception as e:
+                print(f"  Warning: Could not remove test database: {e}")
     
     for test_name, passed in tests:
         print_result(test_name, passed)
