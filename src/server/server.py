@@ -46,6 +46,9 @@ class LibLockerServer:
         # Объявление сервера в сети для автоматического обнаружения
         self.announcer = ServerAnnouncer(port=self.port, name="LibLocker Server")
 
+        # Веб-сервер для управления через браузер
+        self.web_server = None
+
         # Регистрация обработчиков событий
         self._register_handlers()
 
@@ -632,12 +635,28 @@ class LibLockerServer:
         await site.start()
         logger.info("Server started successfully")
 
+        # Запускаем веб-сервер если включен в настройках
+        if self.config and self.config.web_server_enabled:
+            try:
+                from .web_server import LibLockerWebServer
+                self.web_server = LibLockerWebServer(self, self.config)
+                await self.web_server.start()
+            except Exception as e:
+                logger.error(f"Failed to start web server: {e}", exc_info=True)
+
         # Держим сервер запущенным
         try:
             await asyncio.Event().wait()
         except KeyboardInterrupt:
             logger.info("Server shutting down...")
         finally:
+            # Останавливаем веб-сервер
+            if self.web_server:
+                try:
+                    await self.web_server.stop()
+                except Exception as e:
+                    logger.error(f"Error stopping web server: {e}")
+            
             # Останавливаем анонсирование
             self.announcer.stop()
             await runner.cleanup()

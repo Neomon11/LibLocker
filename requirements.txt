@@ -35,6 +35,7 @@ marshmallow==3.20.1
 
 # Асинхронные операции
 aiohttp==3.13.3
+aiohttp-jinja2==1.6
 asyncio==3.4.3
 
 # Утилиты

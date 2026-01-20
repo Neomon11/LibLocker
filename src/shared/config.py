@@ -104,6 +104,10 @@ class ServerConfig(Config):
         return port
 
     @property
+    def web_server_enabled(self) -> bool:
+        return self.get_bool('server', 'web_server_enabled', False)
+
+    @property
     def database_path(self) -> str:
         path = self.get('database', 'path', 'data/liblocker.db')
         # Если путь относительный, преобразуем в абсолютный
