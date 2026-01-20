@@ -50,11 +50,6 @@ class LibLockerWebServer:
         self.app.router.add_post('/api/unlock_client', self.unlock_client)
         self.app.router.add_post('/api/logout', self.logout)
 
-    def _check_auth(self, request):
-        """Проверка аутентификации пользователя"""
-        session_data = request.get('session_data', {})
-        return session_data.get('authenticated', False)
-
     async def index(self, request):
         """Главная страница веб-интерфейса"""
         return aiohttp_jinja2.render_template('index.html', request, {})
