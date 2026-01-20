@@ -19,6 +19,8 @@ a = Analysis(
         'engineio.async_drivers.aiohttp',
         'socketio',
         'aiohttp',
+        'aiohttp_jinja2',
+        'jinja2',
         'PyQt6.QtCore',
         'PyQt6.QtGui',
         'PyQt6.QtWidgets',
