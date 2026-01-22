@@ -58,3 +58,4 @@ config.local.ini
 !server.spec
 
 config.client.ini.backup
+*:memory:
