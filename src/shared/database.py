@@ -41,7 +41,7 @@ class ClientModel(Base):
     created_at = Column(DateTime, default=datetime.now)
 
     # Связи
-    sessions = relationship("SessionModel", back_populates="client")
+    sessions = relationship("SessionModel", back_populates="client", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Client(id={self.id}, name='{self.name}', hwid='{self.hwid}')>"
