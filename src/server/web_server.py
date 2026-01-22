@@ -109,6 +109,7 @@ class LibLockerWebServer:
             try:
                 from ..shared.database import ClientModel, SessionModel
                 from ..shared.models import ClientStatus
+                from datetime import datetime, timedelta
                 
                 clients = db_session.query(ClientModel).all()
                 
@@ -120,6 +121,18 @@ class LibLockerWebServer:
                         status='active'
                     ).first()
                     
+                    # Вычисляем оставшееся время для активной сессии
+                    remaining_minutes = 0
+                    if active_session:
+                        if active_session.is_unlimited:
+                            remaining_minutes = -1  # -1 означает неограниченное время
+                        else:
+                            # Вычисляем время окончания сессии
+                            end_time = active_session.start_time + timedelta(minutes=active_session.duration_minutes)
+                            remaining = end_time - datetime.now()
+                            remaining_seconds = remaining.total_seconds()
+                            remaining_minutes = max(0, int(remaining_seconds / 60))
+                    
                     clients_data.append({
                         'id': client.id,
                         'name': client.name,
@@ -129,7 +142,7 @@ class LibLockerWebServer:
                         'last_seen': client.last_seen.isoformat() if client.last_seen else None,
                         'has_session': active_session is not None,
                         'session_info': {
-                            'remaining_minutes': active_session.remaining_minutes if active_session else 0,
+                            'remaining_minutes': remaining_minutes,
                             'is_unlimited': active_session.is_unlimited if active_session else False,
                         } if active_session else None
                     })

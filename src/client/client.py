@@ -314,11 +314,22 @@ class LibLockerClient:
 
     async def run(self):
         """Запуск клиента"""
-        await self.connect()
-
+        # Пытаемся подключиться, если не получается - повторяем каждые 10 секунд
+        connection_retry_interval = 10  # секунд
+        
         # Отправка heartbeat каждые 5 секунд
         try:
             while True:
+                # Если не подключены, пытаемся подключиться
+                if not self.connected:
+                    await self.connect()
+                    if not self.connected:
+                        # Если подключение не удалось, ждем перед следующей попыткой
+                        logger.info(f"Connection failed, retrying in {connection_retry_interval} seconds...")
+                        await asyncio.sleep(connection_retry_interval)
+                        continue
+                
+                # Если подключены, отправляем heartbeat
                 if self.connected:
                     # Получаем remaining_seconds из callback если установлен
                     remaining_seconds = None
