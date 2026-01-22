@@ -133,11 +133,17 @@ class LibLockerWebServer:
                             remaining_seconds = remaining.total_seconds()
                             remaining_minutes = max(0, int(remaining_seconds / 60))
                     
+                    # Определяем правильный статус клиента
+                    # Если есть активная сессия, статус должен быть 'in_session'
+                    client_status = client.status
+                    if active_session:
+                        client_status = ClientStatus.IN_SESSION.value
+                    
                     clients_data.append({
                         'id': client.id,
                         'name': client.name,
                         'hwid': client.hwid,
-                        'status': client.status,
+                        'status': client_status,
                         'ip_address': client.ip_address,
                         'last_seen': client.last_seen.isoformat() if client.last_seen else None,
                         'has_session': active_session is not None,
