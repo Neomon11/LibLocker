@@ -1274,8 +1274,10 @@ class MainWindow(QMainWindow):
                 error_prefix="Не удалось начать сессии"
             )
 
-    async def _start_sessions_bulk(self, client_ids: List[int], duration: int, is_unlimited: bool, 
-                                    hourly_rate: float, free_mode: bool):
+    async def _start_sessions_bulk(
+        self, client_ids: List[int], duration: int, is_unlimited: bool,
+        hourly_rate: float, free_mode: bool
+    ):
         """Helper method to start sessions for multiple clients"""
         results = []
         for client_id in client_ids:
