@@ -7,6 +7,7 @@ import asyncio
 import logging
 import os
 from datetime import datetime, timedelta
+from typing import List
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QTableWidget, QTableWidgetItem, QLabel, QDialog,
@@ -780,6 +781,7 @@ class MainWindow(QMainWindow):
         ])
         self.clients_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.clients_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.clients_table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
         self.clients_table.setAlternatingRowColors(True)
         self.clients_table.setStyleSheet(TABLE_STYLE)
         self.clients_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -1243,14 +1245,18 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Ошибка", f"Не удалось открыть детальную статистику:\n{str(e)}")
 
     def start_session(self):
-        """Начать сессию для выбранного клиента"""
-        selected_rows = self.clients_table.selectedItems()
+        """Начать сессию для выбранных клиентов"""
+        selected_rows = self.clients_table.selectionModel().selectedRows()
         if not selected_rows:
-            QMessageBox.warning(self, "Ошибка", "Выберите клиента")
+            QMessageBox.warning(self, "Ошибка", "Выберите клиент(ов)")
             return
 
-        row = selected_rows[0].row()
-        client_id = int(self.clients_table.item(row, 0).text())
+        # Получаем ID всех выбранных клиентов
+        client_ids = []
+        for index in selected_rows:
+            row = index.row()
+            client_id = int(self.clients_table.item(row, 0).text())
+            client_ids.append(client_id)
 
         # Открываем диалог создания сессии
         dialog = SessionDialog(self)
@@ -1261,46 +1267,67 @@ class MainWindow(QMainWindow):
             free_mode = self.free_mode_check.isChecked()
             hourly_rate = self.hourly_rate_spin.value()
 
-            # Запускаем сессию через asyncio
+            # Запускаем сессии для всех выбранных клиентов через asyncio
             self._execute_async_command(
-                self.server.start_session(
-                    client_id, duration, is_unlimited, hourly_rate, free_mode
-                ),
-                success_message="Сессия начата",
-                error_prefix="Не удалось начать сессию"
+                self._start_sessions_bulk(client_ids, duration, is_unlimited, hourly_rate, free_mode),
+                success_message=f"Сессии начаты для {len(client_ids)} клиент(ов)",
+                error_prefix="Не удалось начать сессии"
             )
 
+    async def _start_sessions_bulk(
+        self, client_ids: List[int], duration: int, is_unlimited: bool,
+        hourly_rate: float, free_mode: bool
+    ):
+        """Helper method to start sessions for multiple clients"""
+        results = []
+        for client_id in client_ids:
+            try:
+                result = await self.server.start_session(
+                    client_id, duration, is_unlimited, hourly_rate, free_mode
+                )
+                results.append(result)
+            except Exception as e:
+                logger.error(f"Error starting session for client {client_id}: {e}")
+                results.append(False)
+        return all(results)
+
     def edit_session_time(self):
-        """Изменить время активной сессии"""
-        selected_rows = self.clients_table.selectedItems()
+        """Изменить время активной сессии для выбранных клиентов"""
+        selected_rows = self.clients_table.selectionModel().selectedRows()
         if not selected_rows:
-            QMessageBox.warning(self, "Ошибка", "Выберите клиента")
+            QMessageBox.warning(self, "Ошибка", "Выберите клиент(ов)")
             return
 
-        row = selected_rows[0].row()
-        client_id = int(self.clients_table.item(row, 0).text())
+        # Получаем ID всех выбранных клиентов
+        client_ids = []
+        for index in selected_rows:
+            row = index.row()
+            client_id = int(self.clients_table.item(row, 0).text())
+            client_ids.append(client_id)
         
-        # Проверяем, есть ли активная сессия
+        # Проверяем, есть ли активные сессии у всех выбранных клиентов
         db_session = self.db.get_session()
         try:
-            active_session = db_session.query(SessionModel).filter_by(
-                client_id=client_id,
-                status='active'
-            ).first()
+            clients_with_active_sessions = []
+            for client_id in client_ids:
+                active_session = db_session.query(SessionModel).filter_by(
+                    client_id=client_id,
+                    status='active'
+                ).first()
+                
+                if active_session:
+                    if active_session.is_unlimited:
+                        QMessageBox.information(self, "Информация", 
+                            f"Клиент {client_id} имеет безлимитную сессию. Невозможно изменить время для безлимитной сессии.")
+                        return
+                    clients_with_active_sessions.append(client_id)
             
-            if not active_session:
-                QMessageBox.warning(self, "Ошибка", "У выбранного клиента нет активной сессии")
-                return
-            
-            if active_session.is_unlimited:
-                QMessageBox.information(self, "Информация", "Невозможно изменить время для безлимитной сессии")
+            if not clients_with_active_sessions:
+                QMessageBox.warning(self, "Ошибка", "Ни у одного из выбранных клиентов нет активной сессии")
                 return
             
             # Открываем диалог для ввода нового времени
             dialog = SessionDialog(self)
-            current_minutes = active_session.duration_minutes
-            dialog.hours_spin.setValue(current_minutes // 60)
-            dialog.minutes_spin.setValue(current_minutes % 60)
             
             if dialog.exec() == QDialog.DialogCode.Accepted:
                 duration, is_unlimited = dialog.get_duration()
@@ -1313,10 +1340,10 @@ class MainWindow(QMainWindow):
                     QMessageBox.warning(self, "Ошибка", "Время сессии должно быть больше 0")
                     return
                 
-                # Обновляем время сессии
+                # Обновляем время сессии для всех клиентов с активными сессиями
                 self._execute_async_command(
-                    self.server.update_session_time(client_id, duration),
-                    success_message=f"Время сессии изменено на {duration} минут",
+                    self._update_session_time_bulk(clients_with_active_sessions, duration),
+                    success_message=f"Время сессии изменено на {duration} минут для {len(clients_with_active_sessions)} клиент(ов)",
                     error_prefix="Не удалось изменить время сессии"
                 )
                 
@@ -1325,6 +1352,18 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Ошибка", f"Не удалось изменить время сессии:\n{str(e)}")
         finally:
             db_session.close()
+
+    async def _update_session_time_bulk(self, client_ids: List[int], duration: int):
+        """Helper method to update session time for multiple clients"""
+        results = []
+        for client_id in client_ids:
+            try:
+                result = await self.server.update_session_time(client_id, duration)
+                results.append(result)
+            except Exception as e:
+                logger.error(f"Error updating session time for client {client_id}: {e}")
+                results.append(False)
+        return all(results)
 
     def edit_session_tariff(self):
         """Изменить тарификацию активной сессии"""
@@ -1401,21 +1440,37 @@ class MainWindow(QMainWindow):
             db_session.close()
 
     def stop_session(self):
-        """Остановить сессию для выбранного клиента"""
-        selected_rows = self.clients_table.selectedItems()
+        """Остановить сессию для выбранных клиентов"""
+        selected_rows = self.clients_table.selectionModel().selectedRows()
         if not selected_rows:
-            QMessageBox.warning(self, "Ошибка", "Выберите клиента")
+            QMessageBox.warning(self, "Ошибка", "Выберите клиент(ов)")
             return
 
-        row = selected_rows[0].row()
-        client_id = int(self.clients_table.item(row, 0).text())
+        # Получаем ID всех выбранных клиентов
+        client_ids = []
+        for index in selected_rows:
+            row = index.row()
+            client_id = int(self.clients_table.item(row, 0).text())
+            client_ids.append(client_id)
 
-        # Останавливаем сессию
+        # Останавливаем сессии для всех выбранных клиентов
         self._execute_async_command(
-            self.server.stop_session(client_id),
-            success_message="Сессия остановлена",
-            error_prefix="Не удалось остановить сессию"
+            self._stop_sessions_bulk(client_ids),
+            success_message=f"Сессии остановлены для {len(client_ids)} клиент(ов)",
+            error_prefix="Не удалось остановить сессии"
         )
+
+    async def _stop_sessions_bulk(self, client_ids: List[int]):
+        """Helper method to stop sessions for multiple clients"""
+        results = []
+        for client_id in client_ids:
+            try:
+                result = await self.server.stop_session(client_id)
+                results.append(result)
+            except Exception as e:
+                logger.error(f"Error stopping session for client {client_id}: {e}")
+                results.append(False)
+        return all(results)
 
     def shutdown_client(self):
         """Выключить компьютер клиента"""
@@ -1515,27 +1570,52 @@ class MainWindow(QMainWindow):
         menu.exec(self.clients_table.viewport().mapToGlobal(position))
     
     def unlock_client(self):
-        """Разблокировать клиента (снять красный экран и экран конца сессии)"""
-        selected_rows = self.clients_table.selectedItems()
+        """Разблокировать выбранных клиентов (снять красный экран и экран конца сессии)"""
+        selected_rows = self.clients_table.selectionModel().selectedRows()
         if not selected_rows:
-            QMessageBox.warning(self, "Ошибка", "Выберите клиента")
+            QMessageBox.warning(self, "Ошибка", "Выберите клиент(ов)")
             return
 
-        row = selected_rows[0].row()
-        client_id = int(self.clients_table.item(row, 0).text())
+        # Получаем ID всех выбранных клиентов
+        client_ids = []
+        for index in selected_rows:
+            row = index.row()
+            client_id = int(self.clients_table.item(row, 0).text())
+            client_ids.append(client_id)
+
+        # Формируем сообщение подтверждения в зависимости от количества клиентов
+        if len(client_ids) == 1:
+            confirmation_message = UNLOCK_CONFIRMATION_MESSAGE
+        else:
+            confirmation_message = (
+                f"Вы уверены, что хотите разблокировать {len(client_ids)} клиент(ов)?\n\n"
+                "Это снимет блокировку с красного экрана тревоги и экрана конца сессии."
+            )
 
         reply = QMessageBox.question(
             self, "Подтверждение",
-            UNLOCK_CONFIRMATION_MESSAGE,
+            confirmation_message,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
 
         if reply == QMessageBox.StandardButton.Yes:
             self._execute_async_command(
-                self.server.unlock_client(client_id),
-                success_message="Команда разблокировки отправлена",
+                self._unlock_clients_bulk(client_ids),
+                success_message=f"Команда разблокировки отправлена для {len(client_ids)} клиент(ов)",
                 error_prefix="Не удалось отправить команду разблокировки"
             )
+
+    async def _unlock_clients_bulk(self, client_ids: List[int]):
+        """Helper method to unlock multiple clients"""
+        results = []
+        for client_id in client_ids:
+            try:
+                result = await self.server.unlock_client(client_id)
+                results.append(result)
+            except Exception as e:
+                logger.error(f"Error unlocking client {client_id}: {e}")
+                results.append(False)
+        return all(results)
 
     def save_settings(self):
         """Сохранить настройки"""
