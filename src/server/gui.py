@@ -7,6 +7,7 @@ import asyncio
 import logging
 import os
 from datetime import datetime, timedelta
+from typing import List
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QTableWidget, QTableWidgetItem, QLabel, QDialog,
@@ -1247,7 +1248,7 @@ class MainWindow(QMainWindow):
         """Начать сессию для выбранных клиентов"""
         selected_rows = self.clients_table.selectionModel().selectedRows()
         if not selected_rows:
-            QMessageBox.warning(self, "Ошибка", "Выберите клиента")
+            QMessageBox.warning(self, "Ошибка", "Выберите клиент(ов)")
             return
 
         # Получаем ID всех выбранных клиентов
@@ -1273,7 +1274,7 @@ class MainWindow(QMainWindow):
                 error_prefix="Не удалось начать сессии"
             )
 
-    async def _start_sessions_bulk(self, client_ids: list, duration: int, is_unlimited: bool, 
+    async def _start_sessions_bulk(self, client_ids: List[int], duration: int, is_unlimited: bool, 
                                     hourly_rate: float, free_mode: bool):
         """Helper method to start sessions for multiple clients"""
         results = []
@@ -1292,7 +1293,7 @@ class MainWindow(QMainWindow):
         """Изменить время активной сессии для выбранных клиентов"""
         selected_rows = self.clients_table.selectionModel().selectedRows()
         if not selected_rows:
-            QMessageBox.warning(self, "Ошибка", "Выберите клиента")
+            QMessageBox.warning(self, "Ошибка", "Выберите клиент(ов)")
             return
 
         # Получаем ID всех выбранных клиентов
@@ -1350,7 +1351,7 @@ class MainWindow(QMainWindow):
         finally:
             db_session.close()
 
-    async def _update_session_time_bulk(self, client_ids: list, duration: int):
+    async def _update_session_time_bulk(self, client_ids: List[int], duration: int):
         """Helper method to update session time for multiple clients"""
         results = []
         for client_id in client_ids:
@@ -1440,7 +1441,7 @@ class MainWindow(QMainWindow):
         """Остановить сессию для выбранных клиентов"""
         selected_rows = self.clients_table.selectionModel().selectedRows()
         if not selected_rows:
-            QMessageBox.warning(self, "Ошибка", "Выберите клиента")
+            QMessageBox.warning(self, "Ошибка", "Выберите клиент(ов)")
             return
 
         # Получаем ID всех выбранных клиентов
@@ -1457,7 +1458,7 @@ class MainWindow(QMainWindow):
             error_prefix="Не удалось остановить сессии"
         )
 
-    async def _stop_sessions_bulk(self, client_ids: list):
+    async def _stop_sessions_bulk(self, client_ids: List[int]):
         """Helper method to stop sessions for multiple clients"""
         results = []
         for client_id in client_ids:
@@ -1570,7 +1571,7 @@ class MainWindow(QMainWindow):
         """Разблокировать выбранных клиентов (снять красный экран и экран конца сессии)"""
         selected_rows = self.clients_table.selectionModel().selectedRows()
         if not selected_rows:
-            QMessageBox.warning(self, "Ошибка", "Выберите клиента")
+            QMessageBox.warning(self, "Ошибка", "Выберите клиент(ов)")
             return
 
         # Получаем ID всех выбранных клиентов
@@ -1602,7 +1603,7 @@ class MainWindow(QMainWindow):
                 error_prefix="Не удалось отправить команду разблокировки"
             )
 
-    async def _unlock_clients_bulk(self, client_ids: list):
+    async def _unlock_clients_bulk(self, client_ids: List[int]):
         """Helper method to unlock multiple clients"""
         results = []
         for client_id in client_ids:
