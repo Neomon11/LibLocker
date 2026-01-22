@@ -19,7 +19,7 @@ def test_session_remaining_minutes_calculation():
     
     # Create a temporary database for testing
     import tempfile
-    temp_db = tempfile.mktemp(suffix='.db')
+    temp_db_fd, temp_db = tempfile.mkstemp(suffix='.db')
     
     try:
         db = Database(temp_db)
@@ -89,6 +89,7 @@ def test_session_remaining_minutes_calculation():
         
     finally:
         # Clean up temp database
+        os.close(temp_db_fd)
         if os.path.exists(temp_db):
             os.remove(temp_db)
 

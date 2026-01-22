@@ -109,7 +109,7 @@ class LibLockerWebServer:
             try:
                 from ..shared.database import ClientModel, SessionModel
                 from ..shared.models import ClientStatus
-                from datetime import datetime
+                from datetime import datetime, timedelta
                 
                 clients = db_session.query(ClientModel).all()
                 
@@ -128,7 +128,6 @@ class LibLockerWebServer:
                             remaining_minutes = -1  # -1 означает неограниченное время
                         else:
                             # Вычисляем время окончания сессии
-                            from datetime import timedelta
                             end_time = active_session.start_time + timedelta(minutes=active_session.duration_minutes)
                             remaining = end_time - datetime.now()
                             remaining_seconds = remaining.total_seconds()
