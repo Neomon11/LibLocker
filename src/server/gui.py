@@ -159,6 +159,62 @@ TABLE_STYLE = """
 """
 
 
+def register_russian_fonts():
+    """Регистрирует шрифты с поддержкой кириллицы для PDF экспорта
+    
+    Returns:
+        tuple: (font_name, font_name_bold) - имена зарегистрированных шрифтов
+    """
+    try:
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        import platform
+        
+        # Определяем пути к шрифтам в зависимости от ОС
+        font_configs = []
+        system = platform.system()
+        
+        if system == 'Linux':
+            font_configs = [
+                ('DejaVuSans', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 
+                 'DejaVuSans-Bold', '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'),
+                ('DejaVuSans', '/usr/share/fonts/dejavu/DejaVuSans.ttf',
+                 'DejaVuSans-Bold', '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf'),
+            ]
+        elif system == 'Windows':
+            font_configs = [
+                ('DejaVuSans', 'C:\\Windows\\Fonts\\DejaVuSans.ttf',
+                 'DejaVuSans-Bold', 'C:\\Windows\\Fonts\\DejaVuSans-Bold.ttf'),
+                ('Arial', 'C:\\Windows\\Fonts\\arial.ttf',
+                 'Arial-Bold', 'C:\\Windows\\Fonts\\arialbd.ttf'),
+            ]
+        elif system == 'Darwin':  # macOS
+            font_configs = [
+                ('DejaVuSans', '/Library/Fonts/DejaVuSans.ttf',
+                 'DejaVuSans-Bold', '/Library/Fonts/DejaVuSans-Bold.ttf'),
+                ('Arial', '/System/Library/Fonts/Supplemental/Arial.ttf',
+                 'Arial-Bold', '/System/Library/Fonts/Supplemental/Arial Bold.ttf'),
+            ]
+        
+        # Пробуем зарегистрировать каждую пару шрифтов
+        for font_name, regular_path, font_name_bold, bold_path in font_configs:
+            if os.path.exists(regular_path) and os.path.exists(bold_path):
+                try:
+                    pdfmetrics.registerFont(TTFont(font_name, regular_path))
+                    pdfmetrics.registerFont(TTFont(font_name_bold, bold_path))
+                    return (font_name, font_name_bold)
+                except Exception as e:
+                    # Если не удалось зарегистрировать этот шрифт, пробуем следующий
+                    logger.debug(f"Could not register font {font_name}: {e}")
+                    continue
+            
+    except Exception as e:
+        # Fallback to default fonts if no suitable fonts found
+        logger.warning(f"Could not register fonts with Cyrillic support, falling back to Helvetica: {e}")
+    
+    return ('Helvetica', 'Helvetica-Bold')
+
+
 class ServerThread(QThread):
     """Поток для запуска WebSocket сервера"""
 
@@ -549,17 +605,7 @@ class DetailedClientStatisticsDialog(QDialog):
         Returns:
             tuple: (font_name, font_name_bold) - имена зарегистрированных шрифтов
         """
-        try:
-            from reportlab.pdfbase import pdfmetrics
-            from reportlab.pdfbase.ttfonts import TTFont
-            
-            pdfmetrics.registerFont(TTFont('DejaVuSans', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'))
-            pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'))
-            return ('DejaVuSans', 'DejaVuSans-Bold')
-        except (OSError, IOError, Exception) as e:
-            # Fallback to default fonts if DejaVu is not available
-            logger.warning(f"Could not register DejaVu fonts, falling back to Helvetica: {e}")
-            return ('Helvetica', 'Helvetica-Bold')
+        return register_russian_fonts()
 
     def export_client_stats(self):
         """Экспорт статистики клиента в PDF"""
@@ -1902,6 +1948,14 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось установить пароль:\n{str(e)}")
                 logger.error(f"Error setting admin password: {e}")
+
+    def _register_russian_fonts(self):
+        """Регистрирует шрифты с поддержкой кириллицы для PDF экспорта
+        
+        Returns:
+            tuple: (font_name, font_name_bold) - имена зарегистрированных шрифтов
+        """
+        return register_russian_fonts()
 
     def export_to_pdf(self):
         """Экспорт отчета в PDF"""
