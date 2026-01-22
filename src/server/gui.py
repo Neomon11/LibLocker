@@ -159,6 +159,59 @@ TABLE_STYLE = """
 """
 
 
+def register_russian_fonts():
+    """Регистрирует шрифты с поддержкой кириллицы для PDF экспорта
+    
+    Returns:
+        tuple: (font_name, font_name_bold) - имена зарегистрированных шрифтов
+    """
+    try:
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        import platform
+        
+        # Определяем пути к шрифтам в зависимости от ОС
+        font_paths = []
+        system = platform.system()
+        
+        if system == 'Linux':
+            font_paths = [
+                ('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'),
+                ('/usr/share/fonts/dejavu/DejaVuSans.ttf', '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf'),
+            ]
+        elif system == 'Windows':
+            font_paths = [
+                ('C:\\Windows\\Fonts\\DejaVuSans.ttf', 'C:\\Windows\\Fonts\\DejaVuSans-Bold.ttf'),
+                ('C:\\Windows\\Fonts\\arial.ttf', 'C:\\Windows\\Fonts\\arialbd.ttf'),
+            ]
+        elif system == 'Darwin':  # macOS
+            font_paths = [
+                ('/Library/Fonts/DejaVuSans.ttf', '/Library/Fonts/DejaVuSans-Bold.ttf'),
+                ('/System/Library/Fonts/Supplemental/Arial.ttf', '/System/Library/Fonts/Supplemental/Arial Bold.ttf'),
+            ]
+        
+        # Пробуем зарегистрировать каждую пару шрифтов
+        for regular_path, bold_path in font_paths:
+            if os.path.exists(regular_path) and os.path.exists(bold_path):
+                pdfmetrics.registerFont(TTFont('DejaVuSans', regular_path))
+                pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', bold_path))
+                return ('DejaVuSans', 'DejaVuSans-Bold')
+        
+        # Если ни один шрифт не найден, пробуем без проверки существования
+        # (на случай нестандартных путей)
+        if font_paths:
+            regular_path, bold_path = font_paths[0]
+            pdfmetrics.registerFont(TTFont('DejaVuSans', regular_path))
+            pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', bold_path))
+            return ('DejaVuSans', 'DejaVuSans-Bold')
+            
+    except (OSError, IOError, Exception) as e:
+        # Fallback to default fonts if no suitable fonts found
+        logger.warning(f"Could not register fonts with Cyrillic support, falling back to Helvetica: {e}")
+    
+    return ('Helvetica', 'Helvetica-Bold')
+
+
 class ServerThread(QThread):
     """Поток для запуска WebSocket сервера"""
 
@@ -549,51 +602,7 @@ class DetailedClientStatisticsDialog(QDialog):
         Returns:
             tuple: (font_name, font_name_bold) - имена зарегистрированных шрифтов
         """
-        try:
-            from reportlab.pdfbase import pdfmetrics
-            from reportlab.pdfbase.ttfonts import TTFont
-            import platform
-            
-            # Определяем пути к шрифтам в зависимости от ОС
-            font_paths = []
-            system = platform.system()
-            
-            if system == 'Linux':
-                font_paths = [
-                    ('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'),
-                    ('/usr/share/fonts/dejavu/DejaVuSans.ttf', '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf'),
-                ]
-            elif system == 'Windows':
-                font_paths = [
-                    ('C:\\Windows\\Fonts\\DejaVuSans.ttf', 'C:\\Windows\\Fonts\\DejaVuSans-Bold.ttf'),
-                    ('C:\\Windows\\Fonts\\arial.ttf', 'C:\\Windows\\Fonts\\arialbd.ttf'),
-                ]
-            elif system == 'Darwin':  # macOS
-                font_paths = [
-                    ('/Library/Fonts/DejaVuSans.ttf', '/Library/Fonts/DejaVuSans-Bold.ttf'),
-                    ('/System/Library/Fonts/Supplemental/Arial.ttf', '/System/Library/Fonts/Supplemental/Arial Bold.ttf'),
-                ]
-            
-            # Пробуем зарегистрировать каждую пару шрифтов
-            for regular_path, bold_path in font_paths:
-                if os.path.exists(regular_path) and os.path.exists(bold_path):
-                    pdfmetrics.registerFont(TTFont('DejaVuSans', regular_path))
-                    pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', bold_path))
-                    return ('DejaVuSans', 'DejaVuSans-Bold')
-            
-            # Если ни один шрифт не найден, пробуем без проверки существования
-            # (на случай нестандартных путей)
-            if font_paths:
-                regular_path, bold_path = font_paths[0]
-                pdfmetrics.registerFont(TTFont('DejaVuSans', regular_path))
-                pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', bold_path))
-                return ('DejaVuSans', 'DejaVuSans-Bold')
-                
-        except (OSError, IOError, Exception) as e:
-            # Fallback to default fonts if no suitable fonts found
-            logger.warning(f"Could not register fonts with Cyrillic support, falling back to Helvetica: {e}")
-        
-        return ('Helvetica', 'Helvetica-Bold')
+        return register_russian_fonts()
 
     def export_client_stats(self):
         """Экспорт статистики клиента в PDF"""
@@ -1943,51 +1952,7 @@ class MainWindow(QMainWindow):
         Returns:
             tuple: (font_name, font_name_bold) - имена зарегистрированных шрифтов
         """
-        try:
-            from reportlab.pdfbase import pdfmetrics
-            from reportlab.pdfbase.ttfonts import TTFont
-            import platform
-            
-            # Определяем пути к шрифтам в зависимости от ОС
-            font_paths = []
-            system = platform.system()
-            
-            if system == 'Linux':
-                font_paths = [
-                    ('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'),
-                    ('/usr/share/fonts/dejavu/DejaVuSans.ttf', '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf'),
-                ]
-            elif system == 'Windows':
-                font_paths = [
-                    ('C:\\Windows\\Fonts\\DejaVuSans.ttf', 'C:\\Windows\\Fonts\\DejaVuSans-Bold.ttf'),
-                    ('C:\\Windows\\Fonts\\arial.ttf', 'C:\\Windows\\Fonts\\arialbd.ttf'),
-                ]
-            elif system == 'Darwin':  # macOS
-                font_paths = [
-                    ('/Library/Fonts/DejaVuSans.ttf', '/Library/Fonts/DejaVuSans-Bold.ttf'),
-                    ('/System/Library/Fonts/Supplemental/Arial.ttf', '/System/Library/Fonts/Supplemental/Arial Bold.ttf'),
-                ]
-            
-            # Пробуем зарегистрировать каждую пару шрифтов
-            for regular_path, bold_path in font_paths:
-                if os.path.exists(regular_path) and os.path.exists(bold_path):
-                    pdfmetrics.registerFont(TTFont('DejaVuSans', regular_path))
-                    pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', bold_path))
-                    return ('DejaVuSans', 'DejaVuSans-Bold')
-            
-            # Если ни один шрифт не найден, пробуем без проверки существования
-            # (на случай нестандартных путей)
-            if font_paths:
-                regular_path, bold_path = font_paths[0]
-                pdfmetrics.registerFont(TTFont('DejaVuSans', regular_path))
-                pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', bold_path))
-                return ('DejaVuSans', 'DejaVuSans-Bold')
-                
-        except (OSError, IOError, Exception) as e:
-            # Fallback to default fonts if no suitable fonts found
-            logger.warning(f"Could not register fonts with Cyrillic support, falling back to Helvetica: {e}")
-        
-        return ('Helvetica', 'Helvetica-Bold')
+        return register_russian_fonts()
 
     def export_to_pdf(self):
         """Экспорт отчета в PDF"""
