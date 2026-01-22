@@ -555,6 +555,17 @@ class DetailedClientStatisticsDialog(QDialog):
             from reportlab.pdfbase.ttfonts import TTFont
             import os
             
+            # Регистрируем шрифт с поддержкой кириллицы
+            try:
+                pdfmetrics.registerFont(TTFont('DejaVuSans', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'))
+                pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'))
+                font_name = 'DejaVuSans'
+                font_name_bold = 'DejaVuSans-Bold'
+            except:
+                # Fallback to default fonts if DejaVu is not available
+                font_name = 'Helvetica'
+                font_name_bold = 'Helvetica-Bold'
+            
             # Генерируем имя файла
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"statistics_{self.client.name}_{timestamp}.pdf"
@@ -568,6 +579,7 @@ class DetailedClientStatisticsDialog(QDialog):
             title_style = ParagraphStyle(
                 'CustomTitle',
                 parent=styles['Heading1'],
+                fontName=font_name_bold,
                 fontSize=18,
                 textColor=colors.HexColor('#2c3e50'),
                 spaceAfter=30,
@@ -585,7 +597,12 @@ class DetailedClientStatisticsDialog(QDialog):
             else:
                 period_text = "Период: Все время"
             
-            period = Paragraph(period_text, styles['Normal'])
+            period_style = ParagraphStyle(
+                'CustomNormal',
+                parent=styles['Normal'],
+                fontName=font_name
+            )
+            period = Paragraph(period_text, period_style)
             elements.append(period)
             elements.append(Spacer(1, 12))
             
@@ -606,10 +623,11 @@ class DetailedClientStatisticsDialog(QDialog):
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTNAME', (0, 0), (-1, 0), font_name_bold),
                 ('FONTSIZE', (0, 0), (-1, 0), 12),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('FONTNAME', (0, 1), (-1, -1), font_name),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
             
@@ -617,7 +635,12 @@ class DetailedClientStatisticsDialog(QDialog):
             elements.append(Spacer(1, 20))
             
             # Детальная таблица сессий
-            details_label = Paragraph("Детальная информация о сессиях", styles['Heading2'])
+            heading2_style = ParagraphStyle(
+                'CustomHeading2',
+                parent=styles['Heading2'],
+                fontName=font_name_bold
+            )
+            details_label = Paragraph("Детальная информация о сессиях", heading2_style)
             elements.append(details_label)
             elements.append(Spacer(1, 12))
             
@@ -636,10 +659,11 @@ class DetailedClientStatisticsDialog(QDialog):
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTNAME', (0, 0), (-1, 0), font_name_bold),
                 ('FONTSIZE', (0, 0), (-1, 0), 10),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+                ('FONTNAME', (0, 1), (-1, -1), font_name),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black),
                 ('FONTSIZE', (0, 1), (-1, -1), 8),
             ]))
@@ -1566,6 +1590,13 @@ class MainWindow(QMainWindow):
         unlock_action.triggered.connect(self.unlock_client)
         menu.addAction(unlock_action)
         
+        menu.addSeparator()
+        
+        # Действие: Удалить клиента
+        delete_action = QAction("🗑️ Удалить клиента", self)
+        delete_action.triggered.connect(self.delete_client)
+        menu.addAction(delete_action)
+        
         # Показываем меню
         menu.exec(self.clients_table.viewport().mapToGlobal(position))
     
@@ -1616,6 +1647,64 @@ class MainWindow(QMainWindow):
                 logger.error(f"Error unlocking client {client_id}: {e}")
                 results.append(False)
         return all(results)
+
+    def delete_client(self):
+        """Удалить выбранного клиента из базы данных"""
+        selected_rows = self.clients_table.selectionModel().selectedRows()
+        if not selected_rows:
+            QMessageBox.warning(self, "Ошибка", "Выберите клиента для удаления")
+            return
+
+        # Получаем информацию о клиенте
+        row = selected_rows[0].row()
+        client_id = int(self.clients_table.item(row, 0).text())
+        client_name = self.clients_table.item(row, 1).text()
+        
+        # Получаем информацию о сессиях клиента
+        db_session = self.db.get_session()
+        try:
+            client = db_session.query(ClientModel).filter_by(id=client_id).first()
+            if not client:
+                QMessageBox.warning(self, "Ошибка", f"Клиент с ID {client_id} не найден в базе данных")
+                return
+            
+            session_count = len(client.sessions)
+            
+            # Формируем сообщение подтверждения
+            confirmation_message = (
+                f"Вы уверены, что хотите удалить клиента '{client_name}'?\n\n"
+                f"Будет удалено:\n"
+                f"- Клиент: {client_name}\n"
+                f"- Сессий: {session_count}\n\n"
+                f"Это действие необратимо!"
+            )
+            
+            reply = QMessageBox.question(
+                self, "Подтверждение удаления",
+                confirmation_message,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            
+            if reply == QMessageBox.StandardButton.Yes:
+                # Удаляем клиента (сессии удалятся автоматически благодаря cascade)
+                db_session.delete(client)
+                db_session.commit()
+                
+                # Обновляем таблицу
+                self.update_clients_table()
+                
+                QMessageBox.information(
+                    self, "Успех", 
+                    f"Клиент '{client_name}' и {session_count} сессий успешно удалены"
+                )
+                logger.info(f"Client {client_id} ({client_name}) deleted with {session_count} sessions")
+                
+        except Exception as e:
+            db_session.rollback()
+            logger.error(f"Error deleting client {client_id}: {e}", exc_info=True)
+            QMessageBox.critical(self, "Ошибка", f"Не удалось удалить клиента:\n{str(e)}")
+        finally:
+            db_session.close()
 
     def save_settings(self):
         """Сохранить настройки"""
@@ -1814,7 +1903,20 @@ class MainWindow(QMainWindow):
             from reportlab.lib.units import inch
             from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
             from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.pdfbase import pdfmetrics
+            from reportlab.pdfbase.ttfonts import TTFont
             import os
+            
+            # Регистрируем шрифт с поддержкой кириллицы
+            try:
+                pdfmetrics.registerFont(TTFont('DejaVuSans', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'))
+                pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'))
+                font_name = 'DejaVuSans'
+                font_name_bold = 'DejaVuSans-Bold'
+            except:
+                # Fallback to default fonts if DejaVu is not available
+                font_name = 'Helvetica'
+                font_name_bold = 'Helvetica-Bold'
             
             # Генерируем имя файла
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1829,6 +1931,7 @@ class MainWindow(QMainWindow):
             title_style = ParagraphStyle(
                 'CustomTitle',
                 parent=styles['Heading1'],
+                fontName=font_name_bold,
                 fontSize=20,
                 textColor=colors.HexColor('#2c3e50'),
                 spaceAfter=30,
@@ -1841,7 +1944,12 @@ class MainWindow(QMainWindow):
             
             # Дата генерации отчета
             date_text = f"Отчет сгенерирован: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-            date_para = Paragraph(date_text, styles['Normal'])
+            normal_style = ParagraphStyle(
+                'CustomNormal',
+                parent=styles['Normal'],
+                fontName=font_name
+            )
+            date_para = Paragraph(date_text, normal_style)
             elements.append(date_para)
             elements.append(Spacer(1, 20))
             
@@ -1861,7 +1969,12 @@ class MainWindow(QMainWindow):
                 active_sessions = len([s for s in all_sessions if s.status == 'active'])
                 
                 # Сводная таблица
-                summary_label = Paragraph("Общая сводка", styles['Heading2'])
+                heading2_style = ParagraphStyle(
+                    'CustomHeading2',
+                    parent=styles['Heading2'],
+                    fontName=font_name_bold
+                )
+                summary_label = Paragraph("Общая сводка", heading2_style)
                 elements.append(summary_label)
                 elements.append(Spacer(1, 12))
                 
@@ -1881,10 +1994,11 @@ class MainWindow(QMainWindow):
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                     ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTNAME', (0, 0), (-1, 0), font_name_bold),
                     ('FONTSIZE', (0, 0), (-1, 0), 12),
                     ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                     ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                    ('FONTNAME', (0, 1), (-1, -1), font_name),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black),
                     ('FONTSIZE', (0, 1), (-1, -1), 10)
                 ]))
@@ -1893,7 +2007,7 @@ class MainWindow(QMainWindow):
                 elements.append(Spacer(1, 20))
                 
                 # Статистика по клиентам
-                clients_label = Paragraph("Статистика по клиентам", styles['Heading2'])
+                clients_label = Paragraph("Статистика по клиентам", heading2_style)
                 elements.append(clients_label)
                 elements.append(Spacer(1, 12))
                 
@@ -1912,10 +2026,11 @@ class MainWindow(QMainWindow):
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                     ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTNAME', (0, 0), (-1, 0), font_name_bold),
                     ('FONTSIZE', (0, 0), (-1, 0), 9),
                     ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                     ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+                    ('FONTNAME', (0, 1), (-1, -1), font_name),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black),
                     ('FONTSIZE', (0, 1), (-1, -1), 8),
                     ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey])
@@ -1925,7 +2040,7 @@ class MainWindow(QMainWindow):
                 elements.append(PageBreak())
                 
                 # Последние сессии
-                sessions_label = Paragraph("Последние сессии (макс. 100)", styles['Heading2'])
+                sessions_label = Paragraph("Последние сессии (макс. 100)", heading2_style)
                 elements.append(sessions_label)
                 elements.append(Spacer(1, 12))
                 
@@ -1944,10 +2059,11 @@ class MainWindow(QMainWindow):
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                     ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTNAME', (0, 0), (-1, 0), font_name_bold),
                     ('FONTSIZE', (0, 0), (-1, 0), 9),
                     ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                     ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+                    ('FONTNAME', (0, 1), (-1, -1), font_name),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black),
                     ('FONTSIZE', (0, 1), (-1, -1), 7),
                     ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey])
