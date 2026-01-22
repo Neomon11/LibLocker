@@ -1903,6 +1903,24 @@ class MainWindow(QMainWindow):
                 QMessageBox.critical(self, "Ошибка", f"Не удалось установить пароль:\n{str(e)}")
                 logger.error(f"Error setting admin password: {e}")
 
+    def _register_russian_fonts(self):
+        """Регистрирует шрифты с поддержкой кириллицы для PDF экспорта
+        
+        Returns:
+            tuple: (font_name, font_name_bold) - имена зарегистрированных шрифтов
+        """
+        try:
+            from reportlab.pdfbase import pdfmetrics
+            from reportlab.pdfbase.ttfonts import TTFont
+            
+            pdfmetrics.registerFont(TTFont('DejaVuSans', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'))
+            pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'))
+            return ('DejaVuSans', 'DejaVuSans-Bold')
+        except (OSError, IOError, Exception) as e:
+            # Fallback to default fonts if DejaVu is not available
+            logger.warning(f"Could not register DejaVu fonts, falling back to Helvetica: {e}")
+            return ('Helvetica', 'Helvetica-Bold')
+
     def export_to_pdf(self):
         """Экспорт отчета в PDF"""
         try:
