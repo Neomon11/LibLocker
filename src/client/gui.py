@@ -1365,6 +1365,14 @@ class MainClientWindow(QMainWindow):
             logger.info("Unlocking lock screen")
             self.lock_screen.force_close()
             self.lock_screen = None
+        
+        # Показываем главное окно
+        logger.info("Showing main window after unlock")
+        self.show()
+        
+        # Очищаем данные сессии, чтобы подготовить клиента к следующей сессии
+        self.current_session_data = None
+        logger.info("Client prepared for next session")
 
     def on_connected_to_server(self):
         """Обработка успешного подключения к серверу"""
