@@ -3,6 +3,7 @@
 SQLAlchemy модели
 """
 import os
+from contextlib import contextmanager
 from datetime import datetime
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Enum
 from sqlalchemy.ext.declarative import declarative_base
@@ -129,6 +130,34 @@ class Database:
     def get_session(self) -> Session:
         """Получить сессию БД"""
         return self.Session()
+    
+    @contextmanager
+    def session_scope(self):
+        """
+        Контекстный менеджер для автоматического управления сессией БД.
+        
+        Автоматически выполняет commit при успешном завершении блока кода
+        и rollback в случае исключения. Всегда закрывает сессию после использования.
+        
+        Использование:
+            with db.session_scope() as session:
+                client = session.query(ClientModel).first()
+                client.name = "New Name"
+                # commit выполнится автоматически
+        
+        Yields:
+            Session: Объект сессии SQLAlchemy
+        """
+        session = self.Session()
+        try:
+            yield session
+            session.commit()
+        except Exception:
+            # Откатываем изменения при любых ошибках
+            session.rollback()
+            raise
+        finally:
+            session.close()
 
     def close(self) -> None:
         """Закрыть соединение"""

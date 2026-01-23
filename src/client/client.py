@@ -18,6 +18,11 @@ from ..shared.models import ClientStatus
 
 logger = logging.getLogger(__name__)
 
+# Константы для повторного подключения
+INITIAL_RECONNECT_DELAY = 1  # Начальная задержка в секундах
+MAX_RECONNECT_DELAY = 300  # Максимальная задержка в секундах (5 минут)
+RECONNECT_BACKOFF_MULTIPLIER = 2  # Множитель для экспоненциального роста
+
 
 class LibLockerClient:
     """Клиент LibLocker для подключения к серверу"""
@@ -43,6 +48,7 @@ class LibLockerClient:
         # Состояние
         self.connected = False
         self.status = ClientStatus.OFFLINE
+        self.reconnect_delay = INITIAL_RECONNECT_DELAY  # Текущая задержка переподключения
 
         # Callbacks для обработки команд
         self.on_session_start: Optional[Callable] = None
@@ -313,10 +319,12 @@ class LibLockerClient:
         await self.sio.disconnect()
 
     async def run(self):
-        """Запуск клиента"""
-        # Пытаемся подключиться, если не получается - повторяем каждые 10 секунд
-        connection_retry_interval = 10  # секунд
+        """
+        Запуск клиента с экспоненциальной задержкой переподключения.
         
+        Пытается подключиться к серверу и отправляет heartbeat каждые 5 секунд.
+        При неудачном подключении использует экспоненциальную задержку с максимумом 5 минут.
+        """
         # Отправка heartbeat каждые 5 секунд
         try:
             while True:
@@ -324,10 +332,18 @@ class LibLockerClient:
                 if not self.connected:
                     await self.connect()
                     if not self.connected:
-                        # Если подключение не удалось, ждем перед следующей попыткой
-                        logger.info(f"Connection failed, retrying in {connection_retry_interval} seconds...")
-                        await asyncio.sleep(connection_retry_interval)
+                        # Если подключение не удалось, используем экспоненциальную задержку
+                        logger.info(f"Connection failed, retrying in {self.reconnect_delay} seconds...")
+                        await asyncio.sleep(self.reconnect_delay)
+                        # Увеличиваем задержку для следующей попытки
+                        self.reconnect_delay = min(
+                            self.reconnect_delay * RECONNECT_BACKOFF_MULTIPLIER,
+                            MAX_RECONNECT_DELAY
+                        )
                         continue
+                    else:
+                        # Успешное подключение - сбрасываем задержку
+                        self.reconnect_delay = INITIAL_RECONNECT_DELAY
                 
                 # Если подключены, отправляем heartbeat
                 if self.connected:
