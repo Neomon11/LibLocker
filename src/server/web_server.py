@@ -8,6 +8,7 @@ from aiohttp import web
 import aiohttp_jinja2
 import jinja2
 from ..shared.utils import verify_password
+from .server import DEFAULT_MAX_SESSION_DURATION_MINUTES
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +17,10 @@ def validate_positive_integer(value, field_name, min_value=1, max_value=None):
     """
     Валидация положительного целого числа.
     
+    Проверяет, что значение является положительным целым числом
+    в допустимом диапазоне. Не выбрасывает исключений - все ошибки
+    возвращаются в виде кортежа результата.
+    
     Args:
         value: Значение для проверки
         field_name: Название поля для сообщения об ошибке
@@ -23,7 +28,14 @@ def validate_positive_integer(value, field_name, min_value=1, max_value=None):
         max_value: Максимальное допустимое значение (опционально)
         
     Returns:
-        Кортеж (success: bool, error_message: str or None, validated_value: int or None)
+        Кортеж из трех элементов:
+        - success (bool): True если валидация прошла успешно
+        - error_message (str or None): Сообщение об ошибке или None
+        - validated_value (int or None): Проверенное значение или None
+        
+    Note:
+        Функция никогда не выбрасывает исключений. Все ошибки возвращаются
+        через success=False и соответствующее error_message.
     """
     if value is None:
         return False, f"{field_name} не указан", None
@@ -227,7 +239,9 @@ class LibLockerWebServer:
             # Валидация duration_minutes (если не безлимит)
             if not is_unlimited:
                 success, error, validated_duration = validate_positive_integer(
-                    duration_minutes, 'Длительность сессии', min_value=1, max_value=1440  # max 24 hours
+                    duration_minutes, 'Длительность сессии', 
+                    min_value=1, 
+                    max_value=DEFAULT_MAX_SESSION_DURATION_MINUTES
                 )
                 if not success:
                     return web.json_response({
