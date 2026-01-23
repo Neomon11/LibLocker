@@ -17,6 +17,10 @@ from ..shared.discovery import ServerAnnouncer
 
 logger = logging.getLogger(__name__)
 
+# Константы по умолчанию
+DEFAULT_ALERT_VOLUME = 80  # Громкость звукового оповещения (0-100)
+DEFAULT_MAX_SESSION_DURATION_MINUTES = 1440  # Максимальная длительность сессии (24 часа)
+
 
 class LibLockerServer:
     """Основной класс сервера LibLocker"""
@@ -622,7 +626,7 @@ class LibLockerServer:
 
         # Используем переданную громкость или берем из конфигурации сервера
         if alert_volume is None:
-            alert_volume = 80  # Значение по умолчанию
+            alert_volume = DEFAULT_ALERT_VOLUME
             if self.config:
                 alert_volume = self.config.installation_monitor_alert_volume
 
