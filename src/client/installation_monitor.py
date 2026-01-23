@@ -35,6 +35,13 @@ class InstallationMonitor:
         'nsis.exe', 'isetup.exe'
     }
     
+    # Системные процессы-исключения (не триггерят тревогу даже если содержат 'setup' или 'install')
+    SYSTEM_PROCESS_EXCLUSIONS = {
+        'trustedinstaller.exe',  # Windows Modules Installer (Windows Update service)
+        'tiworker.exe',  # Windows Update worker process
+        'wuauclt.exe',  # Windows Update AutoUpdate Client
+    }
+    
     # Папки для мониторинга загрузок
     DOWNLOAD_FOLDERS = [
         Path.home() / "Downloads",
@@ -152,6 +159,10 @@ class InstallationMonitor:
                     
                     # Добавляем в известные
                     self.known_processes.add(pid)
+                    
+                    # Пропускаем системные процессы из списка исключений
+                    if name in self.SYSTEM_PROCESS_EXCLUSIONS:
+                        continue
                     
                     # Проверяем, является ли это установщиком
                     if name in self.INSTALLER_PROCESSES or 'setup' in name or 'install' in name:
