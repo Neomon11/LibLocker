@@ -78,7 +78,16 @@ class LibLockerServer:
                 await self.sio.emit('error', {'message': str(e)}, room=sid)
 
     async def _handle_message(self, sid: str, msg: Message):
-        """Обработка сообщения от клиента"""
+        """
+        Обработка сообщения от клиента.
+        
+        Маршрутизирует входящие сообщения к соответствующим обработчикам
+        в зависимости от типа сообщения.
+        
+        Args:
+            sid: Socket ID клиента
+            msg: Объект Message с типом и данными
+        """
         msg_type = msg.type
 
         if msg_type == MessageType.CLIENT_REGISTER.value:
@@ -99,6 +108,21 @@ class LibLockerServer:
             }, room=sid)
         else:
             logger.warning(f"Unknown message type: {msg_type}")
+
+    def _get_client_sid(self, client_id: int) -> Optional[str]:
+        """
+        Получить socket ID (sid) клиента по его ID в базе данных.
+        
+        Args:
+            client_id: ID клиента в базе данных
+            
+        Returns:
+            Socket ID клиента если он подключен, иначе None
+        """
+        for sid, info in self.connected_clients.items():
+            if info['client_id'] == client_id:
+                return sid
+        return None
 
     async def _handle_client_register(self, sid: str, data: dict):
         """Обработка регистрации клиента"""
@@ -159,7 +183,15 @@ class LibLockerServer:
             db_session.close()
 
     async def _handle_heartbeat(self, sid: str, data: dict):
-        """Обработка heartbeat от клиента"""
+        """
+        Обработка heartbeat от клиента.
+        
+        Обновляет последнее время активности клиента и его статус в базе данных.
+        
+        Args:
+            sid: Socket ID клиента
+            data: Данные heartbeat, могут содержать статус клиента
+        """
         if sid in self.connected_clients:
             client_info = self.connected_clients[sid]
 
@@ -259,16 +291,27 @@ class LibLockerServer:
     async def start_session(self, client_id: int, duration_minutes: int = 0,
                           is_unlimited: bool = False, cost_per_hour: float = 0.0,
                           free_mode: bool = True) -> bool:
-        """Начать сессию для клиента"""
+        """
+        Начать сессию для клиента.
+        
+        Создает новую сессию в базе данных и отправляет команду запуска
+        сессии подключенному клиенту. Сессия может быть ограниченной по времени
+        или безлимитной.
+        
+        Args:
+            client_id: ID клиента в базе данных
+            duration_minutes: Длительность сессии в минутах (игнорируется если is_unlimited=True)
+            is_unlimited: True для безлимитной сессии
+            cost_per_hour: Стоимость сессии в рублях за час
+            free_mode: True если сессия бесплатная (игнорирует cost_per_hour)
+            
+        Returns:
+            True если сессия успешно запущена, False в случае ошибки
+        """
         logger.info(f"Starting session for client {client_id}")
 
         # Находим sid клиента
-        client_sid = None
-        for sid, info in self.connected_clients.items():
-            if info['client_id'] == client_id:
-                client_sid = sid
-                break
-
+        client_sid = self._get_client_sid(client_id)
         if not client_sid:
             logger.error(f"Client {client_id} not connected")
             return False
@@ -328,16 +371,23 @@ class LibLockerServer:
             db_session.close()
 
     async def stop_session(self, client_id: int) -> bool:
-        """Остановить сессию для клиента"""
+        """
+        Остановить сессию для клиента.
+        
+        Завершает активную сессию клиента, рассчитывает финальную стоимость
+        на основе фактически потраченного времени и отправляет команду
+        остановки сессии клиенту.
+        
+        Args:
+            client_id: ID клиента в базе данных
+            
+        Returns:
+            True если сессия успешно остановлена, False в случае ошибки
+        """
         logger.info(f"Stopping session for client {client_id}")
 
         # Находим sid клиента
-        client_sid = None
-        for sid, info in self.connected_clients.items():
-            if info['client_id'] == client_id:
-                client_sid = sid
-                break
-
+        client_sid = self._get_client_sid(client_id)
         if not client_sid:
             logger.error(f"Client {client_id} not connected")
             return False
@@ -409,12 +459,7 @@ class LibLockerServer:
         logger.info(f"Updating session time for client {client_id} to {new_duration_minutes} minutes")
 
         # Находим sid клиента
-        client_sid = None
-        for sid, info in self.connected_clients.items():
-            if info['client_id'] == client_id:
-                client_sid = sid
-                break
-
+        client_sid = self._get_client_sid(client_id)
         if not client_sid:
             logger.error(f"Client {client_id} not connected")
             return False
@@ -460,12 +505,7 @@ class LibLockerServer:
         logger.info(f"Updating session tariff for client {client_id}: free_mode={free_mode}, cost_per_hour={cost_per_hour}")
 
         # Находим sid клиента
-        client_sid = None
-        for sid, info in self.connected_clients.items():
-            if info['client_id'] == client_id:
-                client_sid = sid
-                break
-
+        client_sid = self._get_client_sid(client_id)
         if not client_sid:
             logger.error(f"Client {client_id} not connected")
             return False
@@ -513,12 +553,7 @@ class LibLockerServer:
         logger.info(f"Shutting down client {client_id}")
 
         # Находим sid клиента
-        client_sid = None
-        for sid, info in self.connected_clients.items():
-            if info['client_id'] == client_id:
-                client_sid = sid
-                break
-
+        client_sid = self._get_client_sid(client_id)
         if not client_sid:
             logger.error(f"Client {client_id} not connected")
             return False
@@ -540,12 +575,7 @@ class LibLockerServer:
         logger.info(f"Unlocking client {client_id}")
 
         # Находим sid клиента
-        client_sid = None
-        for sid, info in self.connected_clients.items():
-            if info['client_id'] == client_id:
-                client_sid = sid
-                break
-
+        client_sid = self._get_client_sid(client_id)
         if not client_sid:
             logger.error(f"Client {client_id} not connected")
             return False
@@ -585,12 +615,7 @@ class LibLockerServer:
         logger.info(f"Toggling installation monitor for client {client_id}: enabled={enabled}")
 
         # Находим sid клиента
-        client_sid = None
-        for sid, info in self.connected_clients.items():
-            if info['client_id'] == client_id:
-                client_sid = sid
-                break
-
+        client_sid = self._get_client_sid(client_id)
         if not client_sid:
             logger.error(f"Client {client_id} not connected")
             return False

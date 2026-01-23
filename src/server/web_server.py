@@ -12,6 +12,36 @@ from ..shared.utils import verify_password
 logger = logging.getLogger(__name__)
 
 
+def validate_positive_integer(value, field_name, min_value=1, max_value=None):
+    """
+    Валидация положительного целого числа.
+    
+    Args:
+        value: Значение для проверки
+        field_name: Название поля для сообщения об ошибке
+        min_value: Минимальное допустимое значение (по умолчанию 1)
+        max_value: Максимальное допустимое значение (опционально)
+        
+    Returns:
+        Кортеж (success: bool, error_message: str or None, validated_value: int or None)
+    """
+    if value is None:
+        return False, f"{field_name} не указан", None
+    
+    try:
+        int_value = int(value)
+    except (ValueError, TypeError):
+        return False, f"{field_name} должен быть числом", None
+    
+    if int_value < min_value:
+        return False, f"{field_name} должен быть >= {min_value}", None
+    
+    if max_value is not None and int_value > max_value:
+        return False, f"{field_name} должен быть <= {max_value}", None
+    
+    return True, None, int_value
+
+
 class LibLockerWebServer:
     """Веб-сервер для управления LibLocker через браузер"""
 
@@ -184,11 +214,27 @@ class LibLockerWebServer:
             duration_minutes = data.get('duration_minutes', 30)
             is_unlimited = data.get('is_unlimited', False)
             
-            if not client_id:
+            # Валидация client_id
+            success, error, validated_client_id = validate_positive_integer(
+                client_id, 'ID клиента', min_value=1
+            )
+            if not success:
                 return web.json_response({
                     'success': False,
-                    'error': 'Не указан ID клиента'
+                    'error': error
                 }, status=400)
+            
+            # Валидация duration_minutes (если не безлимит)
+            if not is_unlimited:
+                success, error, validated_duration = validate_positive_integer(
+                    duration_minutes, 'Длительность сессии', min_value=1, max_value=1440  # max 24 hours
+                )
+                if not success:
+                    return web.json_response({
+                        'success': False,
+                        'error': error
+                    }, status=400)
+                duration_minutes = validated_duration
             
             # Получаем настройки тарификации
             free_mode = self.config.free_mode
@@ -196,7 +242,7 @@ class LibLockerWebServer:
             
             # Запускаем сессию
             success = await self.server.start_session(
-                client_id=client_id,
+                client_id=validated_client_id,
                 duration_minutes=duration_minutes,
                 is_unlimited=is_unlimited,
                 cost_per_hour=cost_per_hour,
@@ -235,14 +281,18 @@ class LibLockerWebServer:
             data = await request.json()
             client_id = data.get('client_id')
             
-            if not client_id:
+            # Валидация client_id
+            success, error, validated_client_id = validate_positive_integer(
+                client_id, 'ID клиента', min_value=1
+            )
+            if not success:
                 return web.json_response({
                     'success': False,
-                    'error': 'Не указан ID клиента'
+                    'error': error
                 }, status=400)
             
             # Останавливаем сессию
-            success = await self.server.stop_session(client_id)
+            success = await self.server.stop_session(validated_client_id)
             
             if success:
                 return web.json_response({
@@ -276,14 +326,18 @@ class LibLockerWebServer:
             data = await request.json()
             client_id = data.get('client_id')
             
-            if not client_id:
+            # Валидация client_id
+            success, error, validated_client_id = validate_positive_integer(
+                client_id, 'ID клиента', min_value=1
+            )
+            if not success:
                 return web.json_response({
                     'success': False,
-                    'error': 'Не указан ID клиента'
+                    'error': error
                 }, status=400)
             
             # Разблокируем клиента
-            success = await self.server.unlock_client(client_id)
+            success = await self.server.unlock_client(validated_client_id)
             
             if success:
                 return web.json_response({
