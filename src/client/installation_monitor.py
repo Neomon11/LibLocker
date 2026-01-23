@@ -161,6 +161,7 @@ class InstallationMonitor:
                     self.known_processes.add(pid)
                     
                     # Пропускаем системные процессы из списка исключений
+                    # (name уже в нижнем регистре, см. строку 154)
                     if name in self.SYSTEM_PROCESS_EXCLUSIONS:
                         continue
                     
