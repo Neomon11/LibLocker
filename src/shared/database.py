@@ -8,7 +8,6 @@ from datetime import datetime
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, Session
-from sqlalchemy.exc import SQLAlchemyError
 import enum
 
 Base = declarative_base()
@@ -153,12 +152,8 @@ class Database:
         try:
             yield session
             session.commit()
-        except SQLAlchemyError:
-            # Откатываем изменения при ошибках БД
-            session.rollback()
-            raise
         except Exception:
-            # Откатываем изменения при любых других ошибках
+            # Откатываем изменения при любых ошибках
             session.rollback()
             raise
         finally:
