@@ -1523,9 +1523,16 @@ def main():
 
     app = QApplication(sys.argv)
     window = MainClientWindow(server_url, config)
-    window.show()
+    
+    # Проверяем настройку запуска в свернутом виде
+    if config.start_minimized:
+        # Показываем окно минимизированным
+        window.showMinimized()
+        logger.info("Client window opened (minimized)")
+    else:
+        window.show()
+        logger.info("Client window opened")
 
-    logger.info("Client window opened")
     sys.exit(app.exec())
 
 
