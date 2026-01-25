@@ -42,7 +42,7 @@ enabled = false
         config.load()
         
         # Verify config
-        assert config.start_minimized == False, "start_minimized should be False"
+        assert not config.start_minimized, "start_minimized should be False"
         print("✓ Test 1 passed: Config reads start_minimized=False correctly")
         
     finally:
@@ -75,7 +75,7 @@ enabled = false
         config.load()
         
         # Verify config
-        assert config.start_minimized == True, "start_minimized should be True"
+        assert config.start_minimized, "start_minimized should be True"
         print("✓ Test 2 passed: Config reads start_minimized=True correctly")
         
         # Note: We can't actually test window.showMinimized() without a display server,

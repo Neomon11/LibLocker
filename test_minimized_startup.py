@@ -52,7 +52,7 @@ enabled = false
         config.load()
         
         # Test that start_minimized returns True
-        assert config.start_minimized == True, "start_minimized should be True"
+        assert config.start_minimized, "start_minimized should be True"
         print("✓ Test passed: start_minimized config reads True correctly")
         
     finally:
@@ -98,7 +98,7 @@ enabled = false
         config.load()
         
         # Test that start_minimized defaults to False
-        assert config.start_minimized == False, "start_minimized should default to False"
+        assert not config.start_minimized, "start_minimized should default to False"
         print("✓ Test passed: start_minimized defaults to False when not specified")
         
     finally:
@@ -145,7 +145,7 @@ enabled = false
         config.load()
         
         # Test that start_minimized returns False
-        assert config.start_minimized == False, "start_minimized should be False"
+        assert not config.start_minimized, "start_minimized should be False"
         print("✓ Test passed: start_minimized config reads False correctly")
         
     finally:
