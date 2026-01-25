@@ -40,6 +40,7 @@ class InstallationMonitor:
         'trustedinstaller.exe',  # Windows Modules Installer (Windows Update service)
         'tiworker.exe',  # Windows Update worker process
         'wuauclt.exe',  # Windows Update AutoUpdate Client
+        'facefoduninstaller.exe',  # Windows Feature on Demand Uninstaller
     }
     
     # Папки для мониторинга загрузок

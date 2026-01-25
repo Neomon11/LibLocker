@@ -1094,6 +1094,12 @@ class MainClientWindow(QMainWindow):
         logger.info("=" * 60)
 
         try:
+            # Автоматически разблокируем если есть активный экран блокировки
+            if self.lock_screen:
+                logger.info("[MainWindow] Lock screen active - auto-unlocking for new session")
+                self.lock_screen.force_close()
+                self.lock_screen = None
+            
             self.current_session_data = data
 
             # Показываем виджет таймера с конфигурацией

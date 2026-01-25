@@ -857,6 +857,8 @@ class MainWindow(QMainWindow):
         self.clients_table.setHorizontalHeaderLabels([
             "ID", "Имя", "IP", "Статус", "Время сессии", "Действия"
         ])
+        # Скрываем колонку ID (она остается в данных для внутреннего использования)
+        self.clients_table.setColumnHidden(0, True)
         self.clients_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.clients_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.clients_table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
