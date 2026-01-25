@@ -255,6 +255,10 @@ class ClientConfig(Config):
         return self.get_bool('autostart', 'auto_connect', True)
 
     @property
+    def start_minimized(self) -> bool:
+        return self.get_bool('autostart', 'start_minimized', False)
+
+    @property
     def installation_monitor_enabled(self) -> bool:
         return self.get_bool('installation_monitor', 'enabled', False)
 
