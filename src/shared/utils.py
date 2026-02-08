@@ -245,3 +245,108 @@ def get_data_directory() -> str:
     
     return data_dir
 
+
+def setup_autostart(enabled: bool, minimized: bool = False) -> bool:
+    """
+    Настройка автозапуска приложения при загрузке системы (Windows)
+    
+    Args:
+        enabled: True для включения, False для отключения
+        minimized: Запускать в свернутом в трей режиме
+        
+    Returns:
+        True если успешно, False если ошибка
+    """
+    if platform.system() != 'Windows':
+        # Автозапуск реализован только для Windows
+        return False
+    
+    try:
+        import winreg
+        
+        # Ключ реестра для автозапуска
+        key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+        app_name = "LibLocker Client"
+        
+        # Открываем ключ реестра
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            key_path,
+            0,
+            winreg.KEY_SET_VALUE | winreg.KEY_QUERY_VALUE
+        )
+        
+        try:
+            if enabled:
+                # Путь к исполняемому файлу
+                if getattr(sys, 'frozen', False):
+                    # Запуск из PyInstaller executable - путь уже экранирован
+                    exe_path = f'"{sys.executable}"'
+                    if minimized:
+                        exe_path += ' --minimized'
+                else:
+                    # Для разработки - используем python + скрипт
+                    python_exe = sys.executable
+                    script_path = os.path.join(get_application_path(), "run_client.py")
+                    # Экранируем пути с пробелами
+                    exe_path = f'"{python_exe}" "{script_path}"'
+                    if minimized:
+                        exe_path += ' --minimized'
+                
+                # Устанавливаем значение в реестре
+                winreg.SetValueEx(key, app_name, 0, winreg.REG_SZ, exe_path)
+            else:
+                # Удаляем из автозапуска
+                try:
+                    winreg.DeleteValue(key, app_name)
+                except FileNotFoundError:
+                    # Значение уже не существует
+                    pass
+            
+            return True
+        finally:
+            # Всегда закрываем ключ
+            winreg.CloseKey(key)
+        
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Failed to setup autostart: {e}")
+        return False
+
+
+def is_autostart_enabled() -> bool:
+    """
+    Проверка, включен ли автозапуск приложения
+    
+    Returns:
+        True если автозапуск включен, False если нет
+    """
+    if platform.system() != 'Windows':
+        return False
+    
+    try:
+        import winreg
+        
+        key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+        app_name = "LibLocker Client"
+        
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            key_path,
+            0,
+            winreg.KEY_QUERY_VALUE
+        )
+        
+        try:
+            winreg.QueryValueEx(key, app_name)
+            return True
+        except FileNotFoundError:
+            return False
+        finally:
+            # Всегда закрываем ключ
+            winreg.CloseKey(key)
+            
+    except Exception:
+        return False
+
