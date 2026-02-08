@@ -1,12 +1,11 @@
 """
 Модуль мониторинга установки программ
-Отслеживает запуск установщиков и скачивание установочных файлов
+Отслеживает скачивание установочных файлов в базовые директории
 """
 import os
 import sys
 import time
 import logging
-import psutil
 from pathlib import Path
 from typing import Callable, Optional, Set
 from threading import Thread, Event
@@ -16,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class InstallationMonitor:
-    """Мониторинг установки программ и скачивания установочных файлов"""
+    """Мониторинг установки программ - отслеживание установочных файлов в базовых директориях"""
     
     # Расширения установочных файлов (зависят от платформы)
     INSTALLER_EXTENSIONS = {'.exe', '.msi', '.bat', '.cmd', '.ps1', '.vbs', '.jar'}
@@ -26,22 +25,6 @@ class InstallationMonitor:
         INSTALLER_EXTENSIONS.update({'.dmg', '.pkg'})
     elif sys.platform.startswith('linux'):  # Linux
         INSTALLER_EXTENSIONS.update({'.deb', '.rpm', '.sh'})
-    
-    # Процессы установщиков (имена)
-    INSTALLER_PROCESSES = {
-        'msiexec.exe', 'setup.exe', 'install.exe', 'installer.exe',
-        'unins000.exe', 'uninst.exe', 'uninstall.exe',
-        'inno_updater.exe', 'installshield.exe', 'wise.exe',
-        'nsis.exe', 'isetup.exe'
-    }
-    
-    # Системные процессы-исключения (не триггерят тревогу даже если содержат 'setup' или 'install')
-    SYSTEM_PROCESS_EXCLUSIONS = {
-        'trustedinstaller.exe',  # Windows Modules Installer (Windows Update service)
-        'tiworker.exe',  # Windows Update worker process
-        'wuauclt.exe',  # Windows Update AutoUpdate Client
-        'facefoduninstaller.exe',  # Windows Feature on Demand Uninstaller
-    }
     
     # Папки для мониторинга загрузок
     DOWNLOAD_FOLDERS = [
@@ -65,23 +48,15 @@ class InstallationMonitor:
         self.monitoring_thread: Optional[Thread] = None
         self.stop_event = Event()
         
-        # Отслеживание уже проверенных процессов и файлов
-        self.known_processes: Set[int] = set()
+        # Отслеживание уже проверенных файлов
         self.known_files: Set[str] = set()
         
-        # Инициализация - запоминаем текущие процессы и файлы
+        # Инициализация - запоминаем текущие файлы
         self._initialize_known_state()
     
     def _initialize_known_state(self):
-        """Инициализация состояния - запоминаем текущие процессы и файлы"""
+        """Инициализация состояния - запоминаем текущие файлы"""
         try:
-            # Запоминаем все текущие процессы
-            for proc in psutil.process_iter(['pid', 'name']):
-                try:
-                    self.known_processes.add(proc.pid)
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
-            
             # Запоминаем существующие файлы в папках загрузок
             for folder in self.DOWNLOAD_FOLDERS:
                 if folder.exists():
@@ -125,11 +100,6 @@ class InstallationMonitor:
         """Основной цикл мониторинга"""
         while not self.stop_event.is_set():
             try:
-                # Проверка процессов
-                if self._check_installer_processes():
-                    self._trigger_alert("Обнаружен запуск программы установки")
-                    break
-                
                 # Проверка новых файлов в папках загрузок
                 if self._check_download_folders():
                     self._trigger_alert("Обнаружено скачивание установочного файла")
@@ -140,47 +110,6 @@ class InstallationMonitor:
             
             # Проверка каждые 2 секунды
             self.stop_event.wait(2)
-    
-    def _check_installer_processes(self) -> bool:
-        """
-        Проверка запущенных процессов установщиков
-        
-        Returns:
-            True если обнаружен новый процесс установки
-        """
-        try:
-            for proc in psutil.process_iter(['pid', 'name', 'create_time']):
-                try:
-                    pid = proc.pid
-                    name = proc.name().lower() if proc.name() else ""
-                    
-                    # Пропускаем уже известные процессы
-                    if pid in self.known_processes:
-                        continue
-                    
-                    # Добавляем в известные
-                    self.known_processes.add(pid)
-                    
-                    # Пропускаем системные процессы из списка исключений
-                    # (name уже в нижнем регистре, см. строку 154)
-                    if name in self.SYSTEM_PROCESS_EXCLUSIONS:
-                        continue
-                    
-                    # Проверяем, является ли это установщиком
-                    if name in self.INSTALLER_PROCESSES or 'setup' in name or 'install' in name:
-                        # Проверяем, что процесс создан недавно (в последние 10 секунд)
-                        create_time = datetime.fromtimestamp(proc.create_time())
-                        if datetime.now() - create_time < timedelta(seconds=10):
-                            logger.warning(f"Installer process detected: {name} (PID: {pid})")
-                            return True
-                    
-                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                    pass
-        
-        except Exception as e:
-            logger.error(f"Error checking processes: {e}", exc_info=True)
-        
-        return False
     
     def _check_download_folders(self) -> bool:
         """
