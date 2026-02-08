@@ -322,9 +322,21 @@ class SessionDialog(QDialog):
         self.accept()
 
     def set_time(self, hours: int, minutes: int):
-        """Установить время"""
-        self.hours_spin.setValue(hours)
-        self.minutes_spin.setValue(minutes)
+        """Добавить время к текущему значению"""
+        current_hours = self.hours_spin.value()
+        current_minutes = self.minutes_spin.value()
+        
+        # Складываем время
+        total_minutes = current_minutes + minutes
+        total_hours = current_hours + hours
+        
+        # Преобразуем минуты в часы если >= 60
+        if total_minutes >= 60:
+            total_hours += total_minutes // 60
+            total_minutes = total_minutes % 60
+        
+        self.hours_spin.setValue(total_hours)
+        self.minutes_spin.setValue(total_minutes)
         self.is_unlimited = False
 
     def set_unlimited(self):

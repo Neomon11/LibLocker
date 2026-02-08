@@ -941,6 +941,17 @@ class MainClientWindow(QMainWindow):
         # Разделитель
         tray_menu.addSeparator()
         
+        # Действие "Автозапуск" с чекбоксом
+        from ..shared.utils import is_autostart_enabled
+        autostart_action = QAction("🚀 Автозапуск при загрузке системы", self)
+        autostart_action.setCheckable(True)
+        autostart_action.setChecked(is_autostart_enabled())
+        autostart_action.triggered.connect(self.toggle_autostart)
+        tray_menu.addAction(autostart_action)
+        
+        # Разделитель
+        tray_menu.addSeparator()
+        
         # Действие "Закрыть клиент" (с проверкой пароля)
         exit_action = QAction("Закрыть клиент", self)
         exit_action.triggered.connect(self.exit_with_password_check)
@@ -1002,6 +1013,36 @@ class MainClientWindow(QMainWindow):
                     "Для подключения к новому серверу необходимо перезапустить клиент.\n"
                     "Пожалуйста, закройте и снова запустите приложение."
                 )
+    
+    def toggle_autostart(self, checked: bool):
+        """Переключение автозапуска при загрузке системы"""
+        from ..shared.utils import setup_autostart
+        
+        # Пытаемся настроить автозапуск (всегда с опцией --minimized)
+        success = setup_autostart(checked, minimized=True)
+        
+        if success:
+            status = "включен" if checked else "отключен"
+            self.tray_icon.showMessage(
+                "Автозапуск",
+                f"Автозапуск при загрузке системы {status}",
+                QSystemTrayIcon.MessageIcon.Information,
+                2000
+            )
+        else:
+            # Если не удалось, показываем ошибку
+            QMessageBox.warning(
+                self,
+                "Ошибка",
+                "Не удалось изменить настройки автозапуска.\n"
+                "Возможно, у приложения недостаточно прав."
+            )
+            # Возвращаем чекбокс в предыдущее состояние
+            # Находим действие в меню и переключаем обратно
+            for action in self.tray_icon.contextMenu().actions():
+                if action.text().startswith("🚀"):
+                    action.setChecked(not checked)
+                    break
 
     def exit_with_password_check(self):
         """Выход из приложения с проверкой пароля администратора"""
@@ -1495,6 +1536,17 @@ class MainClientWindow(QMainWindow):
 
 def main():
     """Точка входа в клиентское приложение"""
+    import sys
+    import argparse
+    
+    # Парсинг аргументов командной строки
+    parser = argparse.ArgumentParser(description='LibLocker Client')
+    parser.add_argument('server_url', nargs='?', help='URL сервера для подключения')
+    parser.add_argument('--minimized', action='store_true', 
+                       help='Запустить клиент свернутым в системный трей')
+    
+    args = parser.parse_args()
+    
     # Загрузка конфигурации
     config = ClientConfig()
 
@@ -1516,16 +1568,29 @@ def main():
     logger.info("=" * 50)
     logger.info("LibLocker Client starting...")
     logger.info(f"Config loaded: {config.config_file}")
+    if args.minimized:
+        logger.info("Starting in minimized mode")
 
-    import sys
     # URL из аргументов командной строки имеет приоритет
-    server_url = sys.argv[1] if len(sys.argv) > 1 else None
+    server_url = args.server_url
 
     app = QApplication(sys.argv)
     window = MainClientWindow(server_url, config)
-    window.show()
+    
+    # Если запуск в свернутом режиме - не показываем окно
+    if args.minimized:
+        # Окно уже инициализировано с иконкой в трее
+        # Показываем уведомление
+        window.tray_icon.showMessage(
+            "LibLocker Client",
+            "Клиент запущен в фоновом режиме",
+            QSystemTrayIcon.MessageIcon.Information,
+            3000
+        )
+    else:
+        window.show()
 
-    logger.info("Client window opened")
+    logger.info("Client window opened" if not args.minimized else "Client started in tray mode")
     sys.exit(app.exec())
 
 
