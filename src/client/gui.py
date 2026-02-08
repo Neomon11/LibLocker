@@ -941,17 +941,6 @@ class MainClientWindow(QMainWindow):
         # Разделитель
         tray_menu.addSeparator()
         
-        # Действие "Автозапуск" с чекбоксом
-        from ..shared.utils import is_autostart_enabled
-        autostart_action = QAction("🚀 Автозапуск при загрузке системы", self)
-        autostart_action.setCheckable(True)
-        autostart_action.setChecked(is_autostart_enabled())
-        autostart_action.triggered.connect(self.toggle_autostart)
-        tray_menu.addAction(autostart_action)
-        
-        # Разделитель
-        tray_menu.addSeparator()
-        
         # Действие "Закрыть клиент" (с проверкой пароля)
         exit_action = QAction("Закрыть клиент", self)
         exit_action.triggered.connect(self.exit_with_password_check)
@@ -1013,36 +1002,6 @@ class MainClientWindow(QMainWindow):
                     "Для подключения к новому серверу необходимо перезапустить клиент.\n"
                     "Пожалуйста, закройте и снова запустите приложение."
                 )
-    
-    def toggle_autostart(self, checked: bool):
-        """Переключение автозапуска при загрузке системы"""
-        from ..shared.utils import setup_autostart
-        
-        # Пытаемся настроить автозапуск (всегда с опцией --minimized)
-        success = setup_autostart(checked, minimized=True)
-        
-        if success:
-            status = "включен" if checked else "отключен"
-            self.tray_icon.showMessage(
-                "Автозапуск",
-                f"Автозапуск при загрузке системы {status}",
-                QSystemTrayIcon.MessageIcon.Information,
-                2000
-            )
-        else:
-            # Если не удалось, показываем ошибку
-            QMessageBox.warning(
-                self,
-                "Ошибка",
-                "Не удалось изменить настройки автозапуска.\n"
-                "Возможно, у приложения недостаточно прав."
-            )
-            # Возвращаем чекбокс в предыдущее состояние
-            # Находим действие в меню и переключаем обратно
-            for action in self.tray_icon.contextMenu().actions():
-                if action.text().startswith("🚀"):
-                    action.setChecked(not checked)
-                    break
 
     def exit_with_password_check(self):
         """Выход из приложения с проверкой пароля администратора"""

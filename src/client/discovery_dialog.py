@@ -134,6 +134,26 @@ class ServerDiscoveryDialog(QDialog):
         manual_group.setLayout(manual_layout)
         layout.addWidget(manual_group)
         
+        # Группа настроек автозапуска
+        settings_group = QGroupBox("Настройки запуска")
+        settings_layout = QVBoxLayout()
+        
+        from ..shared.utils import is_autostart_enabled
+        from PyQt6.QtWidgets import QCheckBox
+        
+        self.autostart_checkbox = QCheckBox("🚀 Автозапуск при загрузке Windows")
+        self.autostart_checkbox.setChecked(is_autostart_enabled())
+        self.autostart_checkbox.stateChanged.connect(self._on_autostart_changed)
+        settings_layout.addWidget(self.autostart_checkbox)
+        
+        autostart_hint = QLabel("При включении клиент будет автоматически запускаться в свернутом режиме при старте системы")
+        autostart_hint.setStyleSheet("color: #666; font-size: 9pt;")
+        autostart_hint.setWordWrap(True)
+        settings_layout.addWidget(autostart_hint)
+        
+        settings_group.setLayout(settings_layout)
+        layout.addWidget(settings_group)
+        
         # Кнопки
         button_layout = QHBoxLayout()
         
@@ -248,6 +268,31 @@ class ServerDiscoveryDialog(QDialog):
             "Не выбран сервер",
             "Пожалуйста, выберите сервер из списка или введите адрес вручную."
         )
+    
+    def _on_autostart_changed(self, state):
+        """Обработка изменения чекбокса автозапуска"""
+        from ..shared.utils import setup_autostart
+        
+        checked = state == Qt.CheckState.Checked.value
+        
+        # Пытаемся настроить автозапуск (всегда с опцией --minimized)
+        success = setup_autostart(checked, minimized=True)
+        
+        if success:
+            status = "включен" if checked else "отключен"
+            logger.info(f"Autostart {status}")
+        else:
+            # Если не удалось, показываем ошибку и возвращаем чекбокс обратно
+            QMessageBox.warning(
+                self,
+                "Ошибка",
+                "Не удалось изменить настройки автозапуска.\n"
+                "Возможно, у приложения недостаточно прав."
+            )
+            # Блокируем сигналы чтобы избежать рекурсии
+            self.autostart_checkbox.blockSignals(True)
+            self.autostart_checkbox.setChecked(not checked)
+            self.autostart_checkbox.blockSignals(False)
     
     def get_selected_url(self) -> Optional[str]:
         """Возвращает выбранный URL сервера"""
