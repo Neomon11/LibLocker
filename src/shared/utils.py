@@ -276,31 +276,37 @@ def setup_autostart(enabled: bool, minimized: bool = False) -> bool:
             winreg.KEY_SET_VALUE | winreg.KEY_QUERY_VALUE
         )
         
-        if enabled:
-            # Путь к исполняемому файлу
-            if getattr(sys, 'frozen', False):
-                # Запуск из PyInstaller executable
-                exe_path = sys.executable
+        try:
+            if enabled:
+                # Путь к исполняемому файлу
+                if getattr(sys, 'frozen', False):
+                    # Запуск из PyInstaller executable - путь уже экранирован
+                    exe_path = f'"{sys.executable}"'
+                    if minimized:
+                        exe_path += ' --minimized'
+                else:
+                    # Для разработки - используем python + скрипт
+                    python_exe = sys.executable
+                    script_path = os.path.join(get_application_path(), "run_client.py")
+                    # Экранируем пути с пробелами
+                    exe_path = f'"{python_exe}" "{script_path}"'
+                    if minimized:
+                        exe_path += ' --minimized'
+                
+                # Устанавливаем значение в реестре
+                winreg.SetValueEx(key, app_name, 0, winreg.REG_SZ, exe_path)
             else:
-                # Для разработки - используем python + скрипт
-                exe_path = f'"{sys.executable}" "{os.path.join(get_application_path(), "run_client.py")}"'
+                # Удаляем из автозапуска
+                try:
+                    winreg.DeleteValue(key, app_name)
+                except FileNotFoundError:
+                    # Значение уже не существует
+                    pass
             
-            # Добавляем аргумент для запуска в трее
-            if minimized:
-                exe_path += ' --minimized'
-            
-            # Устанавливаем значение в реестре
-            winreg.SetValueEx(key, app_name, 0, winreg.REG_SZ, exe_path)
-        else:
-            # Удаляем из автозапуска
-            try:
-                winreg.DeleteValue(key, app_name)
-            except FileNotFoundError:
-                # Значение уже не существует
-                pass
-        
-        winreg.CloseKey(key)
-        return True
+            return True
+        finally:
+            # Всегда закрываем ключ
+            winreg.CloseKey(key)
         
     except Exception as e:
         import logging
@@ -334,11 +340,12 @@ def is_autostart_enabled() -> bool:
         
         try:
             winreg.QueryValueEx(key, app_name)
-            winreg.CloseKey(key)
             return True
         except FileNotFoundError:
-            winreg.CloseKey(key)
             return False
+        finally:
+            # Всегда закрываем ключ
+            winreg.CloseKey(key)
             
     except Exception:
         return False

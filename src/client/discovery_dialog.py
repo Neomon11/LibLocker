@@ -273,7 +273,8 @@ class ServerDiscoveryDialog(QDialog):
         """Обработка изменения чекбокса автозапуска"""
         from ..shared.utils import setup_autostart
         
-        checked = state == Qt.CheckState.Checked.value
+        # Используем isChecked() для более ясного намерения
+        checked = self.autostart_checkbox.isChecked()
         
         # Пытаемся настроить автозапуск (всегда с опцией --minimized)
         success = setup_autostart(checked, minimized=True)
