@@ -137,8 +137,15 @@ class Database:
                 if 'display_order' not in columns:
                     # Добавляем колонку display_order
                     conn.execute(text('ALTER TABLE clients ADD COLUMN display_order INTEGER DEFAULT 0'))
-                    # Устанавливаем display_order = id для существующих клиентов
-                    conn.execute(text('UPDATE clients SET display_order = id WHERE display_order = 0 OR display_order IS NULL'))
+                    
+                    # Устанавливаем display_order последовательно (1, 2, 3...) для существующих клиентов
+                    # используя ROW_NUMBER в SQLite через подзапрос
+                    conn.execute(text('''
+                        UPDATE clients SET display_order = (
+                            SELECT COUNT(*) FROM clients AS c2 
+                            WHERE c2.id <= clients.id
+                        )
+                    '''))
                     conn.commit()
     
     def get_session(self) -> Session:

@@ -153,7 +153,9 @@ class LibLockerServer:
             else:
                 # Создаем нового клиента с display_order
                 # Получаем максимальный display_order и добавляем 1
-                max_order = db_session.query(ClientModel).count()
+                from sqlalchemy import func
+                max_order_result = db_session.query(func.max(ClientModel.display_order)).scalar()
+                max_order = max_order_result if max_order_result is not None else 0
                 client = ClientModel(
                     hwid=hwid,
                     name=name,
