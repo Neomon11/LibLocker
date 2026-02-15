@@ -1151,7 +1151,8 @@ class MainWindow(QMainWindow):
         """Обновление таблицы клиентов"""
         db_session = self.db.get_session()
         try:
-            clients = db_session.query(ClientModel).all()
+            # Сортируем клиентов по display_order, затем по id
+            clients = db_session.query(ClientModel).order_by(ClientModel.display_order, ClientModel.id).all()
             self.clients_table.setRowCount(len(clients))
 
             # Получаем список подключенных клиентов
@@ -1631,6 +1632,19 @@ class MainWindow(QMainWindow):
         # Создаем контекстное меню
         menu = QMenu(self)
         
+        # Действия для изменения порядка
+        move_up_action = QAction("⬆️ Переместить вверх", self)
+        move_up_action.triggered.connect(self.move_client_up)
+        move_up_action.setEnabled(row > 0)  # Отключаем, если уже первый
+        menu.addAction(move_up_action)
+        
+        move_down_action = QAction("⬇️ Переместить вниз", self)
+        move_down_action.triggered.connect(self.move_client_down)
+        move_down_action.setEnabled(row < self.clients_table.rowCount() - 1)  # Отключаем, если уже последний
+        menu.addAction(move_down_action)
+        
+        menu.addSeparator()
+        
         # Действие: Изменить время сессии
         edit_time_action = QAction("⏱️ Изменить время сессии", self)
         edit_time_action.triggered.connect(self.edit_session_time)
@@ -1771,6 +1785,82 @@ class MainWindow(QMainWindow):
             db_session.rollback()
             logger.error(f"Error deleting client {client_id}: {e}", exc_info=True)
             QMessageBox.critical(self, "Ошибка", f"Не удалось удалить клиента:\n{str(e)}")
+        finally:
+            db_session.close()
+
+    def move_client_up(self):
+        """Переместить клиента вверх в списке"""
+        selected_rows = self.clients_table.selectionModel().selectedRows()
+        if not selected_rows:
+            return
+        
+        row = selected_rows[0].row()
+        if row == 0:  # Уже первый
+            return
+        
+        client_id = int(self.clients_table.item(row, 0).text())
+        client_above_id = int(self.clients_table.item(row - 1, 0).text())
+        
+        # Меняем местами display_order
+        db_session = self.db.get_session()
+        try:
+            client = db_session.query(ClientModel).filter_by(id=client_id).first()
+            client_above = db_session.query(ClientModel).filter_by(id=client_above_id).first()
+            
+            if client and client_above:
+                # Меняем местами display_order
+                temp_order = client.display_order
+                client.display_order = client_above.display_order
+                client_above.display_order = temp_order
+                
+                db_session.commit()
+                
+                # Обновляем таблицу и восстанавливаем выбор
+                self.update_clients_table()
+                self.clients_table.selectRow(row - 1)
+                
+        except Exception as e:
+            db_session.rollback()
+            logger.error(f"Error moving client up: {e}")
+            QMessageBox.warning(self, "Ошибка", f"Не удалось переместить клиента: {str(e)}")
+        finally:
+            db_session.close()
+    
+    def move_client_down(self):
+        """Переместить клиента вниз в списке"""
+        selected_rows = self.clients_table.selectionModel().selectedRows()
+        if not selected_rows:
+            return
+        
+        row = selected_rows[0].row()
+        if row >= self.clients_table.rowCount() - 1:  # Уже последний
+            return
+        
+        client_id = int(self.clients_table.item(row, 0).text())
+        client_below_id = int(self.clients_table.item(row + 1, 0).text())
+        
+        # Меняем местами display_order
+        db_session = self.db.get_session()
+        try:
+            client = db_session.query(ClientModel).filter_by(id=client_id).first()
+            client_below = db_session.query(ClientModel).filter_by(id=client_below_id).first()
+            
+            if client and client_below:
+                # Меняем местами display_order
+                temp_order = client.display_order
+                client.display_order = client_below.display_order
+                client_below.display_order = temp_order
+                
+                db_session.commit()
+                
+                # Обновляем таблицу и восстанавливаем выбор
+                self.update_clients_table()
+                self.clients_table.selectRow(row + 1)
+                
+        except Exception as e:
+            db_session.rollback()
+            logger.error(f"Error moving client down: {e}")
+            QMessageBox.warning(self, "Ошибка", f"Не удалось переместить клиента: {str(e)}")
         finally:
             db_session.close()
 
