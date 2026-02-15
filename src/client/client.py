@@ -24,6 +24,9 @@ INITIAL_RECONNECT_DELAY = 2  # Начальная задержка в секун
 MAX_RECONNECT_DELAY = 60  # Максимальная задержка в секундах (1 минута для Socket.IO)
 RECONNECT_BACKOFF_MULTIPLIER = 1.5  # Множитель для экспоненциального роста
 
+# Константа для интервала отправки heartbeat
+HEARTBEAT_INTERVAL = 5  # Интервал отправки heartbeat в секундах
+
 
 class LibLockerClient:
     """Клиент LibLocker для подключения к серверу"""
@@ -345,7 +348,7 @@ class LibLockerClient:
         Запуск клиента с автоматическим переподключением.
         
         Socket.IO автоматически обрабатывает переподключение с экспоненциальной задержкой.
-        Этот метод инициирует первое подключение и отправляет heartbeat каждые 5 секунд.
+        Этот метод инициирует первое подключение и отправляет heartbeat каждые HEARTBEAT_INTERVAL секунд.
         """
         try:
             # Инициируем первое подключение
@@ -354,7 +357,7 @@ class LibLockerClient:
             
             # Основной цикл отправки heartbeat
             while True:
-                await asyncio.sleep(5)  # Heartbeat каждые 5 секунд
+                await asyncio.sleep(HEARTBEAT_INTERVAL)
                 
                 if self.connected:
                     # Получаем remaining_seconds из callback если установлен

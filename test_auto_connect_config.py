@@ -19,22 +19,32 @@ print("Test: Auto-Connect Configuration")
 print("=" * 70)
 
 
-def test_auto_connect_default():
-    """Test that auto_connect defaults to True"""
-    print("\n📋 Test 1: Default auto_connect value")
-    
-    # Create a temporary config file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.ini', delete=False) as f:
-        config_path = f.name
-        f.write("""[server]
+def create_test_config(auto_connect_value=None):
+    """Helper function to create a test config file with optional auto_connect value"""
+    config_content = """[server]
 url = http://localhost:8765
 
 [autostart]
 enabled = false
-""")
+"""
+    if auto_connect_value is not None:
+        config_content += f"auto_connect = {str(auto_connect_value).lower()}\n"
+    
+    temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.ini', delete=False)
+    temp_file.write(config_content)
+    temp_file.close()
+    return temp_file.name
+
+
+def test_auto_connect_default():
+    """Test that auto_connect defaults to True"""
+    print("\n📋 Test 1: Default auto_connect value")
+    
+    # Create a temporary config file without auto_connect specified
+    config_path = create_test_config()
     
     try:
-        # Load config (without auto_connect specified)
+        # Load config
         config = ClientConfig()
         config.config_file = config_path
         config.config = configparser.ConfigParser()
@@ -57,15 +67,7 @@ def test_auto_connect_explicit_false():
     print("\n📋 Test 2: Explicit auto_connect = false")
     
     # Create a temporary config file with auto_connect = false
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.ini', delete=False) as f:
-        config_path = f.name
-        f.write("""[server]
-url = http://localhost:8765
-
-[autostart]
-enabled = false
-auto_connect = false
-""")
+    config_path = create_test_config(auto_connect_value=False)
     
     try:
         # Load config
@@ -91,15 +93,7 @@ def test_auto_connect_explicit_true():
     print("\n📋 Test 3: Explicit auto_connect = true")
     
     # Create a temporary config file with auto_connect = true
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.ini', delete=False) as f:
-        config_path = f.name
-        f.write("""[server]
-url = http://localhost:8765
-
-[autostart]
-enabled = false
-auto_connect = true
-""")
+    config_path = create_test_config(auto_connect_value=True)
     
     try:
         # Load config

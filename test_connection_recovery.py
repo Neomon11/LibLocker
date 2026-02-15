@@ -167,10 +167,10 @@ async def test_connect_error_handling():
     print("Test 5: Connection Error Handling")
     print("=" * 70)
     
-    # Try connecting to a non-existent server
-    client = LibLockerClient("http://localhost:99999")  # Invalid port
+    # Try connecting to a non-existent server (using valid port but unreachable)
+    client = LibLockerClient("http://192.0.2.1:8765")  # Reserved IP for documentation (RFC 5737)
     
-    print("\n📋 Testing connection to invalid server...")
+    print("\n📋 Testing connection to unreachable server...")
     try:
         # Try to connect - Socket.IO handles errors internally
         await client.connect()

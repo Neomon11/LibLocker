@@ -913,7 +913,9 @@ class MainClientWindow(QMainWindow):
         status_label.setFont(font)
         layout.addWidget(status_label)
 
-        self.connection_label = QLabel("Подключение к серверу..." if self.config.auto_connect else "Ожидание подключения...")
+        # Текст метки подключения зависит от настройки auto_connect
+        connection_text = "Подключение к серверу..." if self.config.auto_connect else "Ожидание подключения..."
+        self.connection_label = QLabel(connection_text)
         self.connection_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.connection_label)
 
