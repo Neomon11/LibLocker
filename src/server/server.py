@@ -495,7 +495,10 @@ class LibLockerServer:
                 logger.error(f"No active session for client {client_id}")
                 return False
 
-            # Обновляем длительность
+            # Обновляем длительность и время начала
+            # Важно: обновляем start_time на текущее время, чтобы новая длительность
+            # отсчитывалась от текущего момента, а не от начала сессии
+            active_session.start_time = datetime.now()
             active_session.duration_minutes = new_duration_minutes
             db_session.commit()
 

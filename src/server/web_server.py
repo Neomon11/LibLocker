@@ -173,7 +173,9 @@ class LibLockerWebServer:
                             end_time = active_session.start_time + timedelta(minutes=active_session.duration_minutes)
                             remaining = end_time - datetime.now()
                             remaining_seconds = remaining.total_seconds()
-                            remaining_minutes = max(0, int(remaining_seconds / 60))
+                            # Используем небольшой допуск для расхождений синхронизации времени (-5 секунд)
+                            # Если время истекло более чем на 5 секунд, показываем 0
+                            remaining_minutes = max(0, int(remaining_seconds / 60)) if remaining_seconds >= -5 else 0
                     
                     # Определяем правильный статус клиента
                     # Если есть активная сессия, статус должен быть 'in_session'
