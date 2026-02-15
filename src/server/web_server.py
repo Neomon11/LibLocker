@@ -173,6 +173,7 @@ class LibLockerWebServer:
                             end_time = active_session.start_time + timedelta(minutes=active_session.duration_minutes)
                             remaining = end_time - datetime.now()
                             remaining_seconds = remaining.total_seconds()
+                            # Показываем 0 минут если время истекло (с небольшим допуском для синхронизации)
                             remaining_minutes = max(0, int(remaining_seconds / 60))
                     
                     # Определяем правильный статус клиента
