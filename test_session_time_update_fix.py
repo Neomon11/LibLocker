@@ -13,6 +13,10 @@ import time
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
+# Threshold for minimum expected remaining minutes after update
+# Accounts for 5-second sleep and processing time
+MIN_EXPECTED_REMAINING_MINUTES = 28
+
 def test_session_time_update_calculation():
     """Test that session time is recalculated correctly when duration is updated"""
     print("=" * 70)
@@ -86,8 +90,8 @@ def test_session_time_update_calculation():
             print(f"\n   ❌ FAIL: Would show 'Завершается...' (remaining_seconds < -5)")
             print(f"   This means start_time was not updated correctly!")
             return False
-        elif remaining_minutes < 28:  # Should be ~30 minutes
-            print(f"\n   ❌ FAIL: Remaining time is too low ({remaining_minutes} < 28)")
+        elif remaining_minutes < MIN_EXPECTED_REMAINING_MINUTES:  # Should be ~30 minutes
+            print(f"\n   ❌ FAIL: Remaining time is too low ({remaining_minutes} < {MIN_EXPECTED_REMAINING_MINUTES})")
             print(f"   Expected ~30 minutes remaining")
             return False
         else:

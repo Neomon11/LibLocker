@@ -7,6 +7,10 @@ This test doesn't require any dependencies.
 from datetime import datetime, timedelta
 import time
 
+# Threshold for minimum expected remaining minutes after update
+# Accounts for sleep time and processing overhead
+MIN_EXPECTED_REMAINING_MINUTES = 28
+
 def test_scenario():
     """Test the actual scenario reported by the user"""
     print("=" * 70)
@@ -61,7 +65,7 @@ def test_scenario():
         hours = fixed_remaining_minutes // 60
         minutes = fixed_remaining_minutes % 60
         print(f"   ✅ Would show: '{hours:02d}:{minutes:02d} осталось' (~{fixed_remaining_minutes} minutes)")
-        result_fixed = fixed_remaining_minutes >= 28  # Should be ~30 minutes
+        result_fixed = fixed_remaining_minutes >= MIN_EXPECTED_REMAINING_MINUTES  # Should be ~30 minutes
     
     # === WITHOUT FIX: Keep old start_time ===
     print("\n   WITHOUT FIX (start_time = original):")
@@ -82,7 +86,7 @@ def test_scenario():
         hours = buggy_remaining_minutes // 60
         minutes = buggy_remaining_minutes % 60
         print(f"   ⚠️  Would show: '{hours:02d}:{minutes:02d} осталось' ({buggy_remaining_minutes} minutes)")
-        if buggy_remaining_minutes < 28:
+        if buggy_remaining_minutes < MIN_EXPECTED_REMAINING_MINUTES:
             print(f"   This is WRONG - should be ~30 minutes!")
     
     return result_fixed
