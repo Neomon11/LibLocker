@@ -40,6 +40,7 @@ class ClientModel(Base):
     status = Column(String(20), default='offline')
     last_seen = Column(DateTime, default=datetime.now)
     created_at = Column(DateTime, default=datetime.now)
+    display_order = Column(Integer, default=0, index=True)
 
     # Связи
     sessions = relationship("SessionModel", back_populates="client", cascade="all, delete-orphan")
@@ -126,6 +127,26 @@ class Database:
                     conn.execute(text('ALTER TABLE sessions ADD COLUMN free_mode BOOLEAN DEFAULT 1'))
                 
                 conn.commit()
+        
+        # Проверяем таблицу clients
+        if 'clients' in inspector.get_table_names():
+            columns = {col['name'] for col in inspector.get_columns('clients')}
+            
+            # Добавляем display_order, если его нет
+            with self.engine.connect() as conn:
+                if 'display_order' not in columns:
+                    # Добавляем колонку display_order
+                    conn.execute(text('ALTER TABLE clients ADD COLUMN display_order INTEGER DEFAULT 0'))
+                    
+                    # Устанавливаем display_order последовательно (1, 2, 3...) для существующих клиентов
+                    # используя ROW_NUMBER в SQLite через подзапрос
+                    conn.execute(text('''
+                        UPDATE clients SET display_order = (
+                            SELECT COUNT(*) FROM clients AS c2 
+                            WHERE c2.id <= clients.id
+                        )
+                    '''))
+                    conn.commit()
     
     def get_session(self) -> Session:
         """Получить сессию БД"""

@@ -151,18 +151,33 @@ class LibLockerServer:
                 client.status = ClientStatus.ONLINE.value
                 client.last_seen = datetime.now()
             else:
-                # Создаем нового клиента
+                # Создаем нового клиента с display_order
+                # Получаем максимальный display_order и добавляем 1
+                from sqlalchemy import func
+                max_order_result = db_session.query(func.max(ClientModel.display_order)).scalar()
+                max_order = max_order_result if max_order_result is not None else 0
                 client = ClientModel(
                     hwid=hwid,
                     name=name,
                     ip_address=ip_address,
                     mac_address=mac_address,
                     status=ClientStatus.ONLINE.value,
-                    last_seen=datetime.now()
+                    last_seen=datetime.now(),
+                    display_order=max_order + 1
                 )
                 db_session.add(client)
 
             db_session.commit()
+
+            # Проверяем, есть ли уже подключение с этим HWID
+            # Если да - удаляем старое (предотвращение дубликатов)
+            old_sid = None
+            for existing_sid, info in list(self.connected_clients.items()):
+                if info.get('hwid') == hwid and existing_sid != sid:
+                    old_sid = existing_sid
+                    logger.info(f"Removing old connection for HWID {hwid}: {existing_sid}")
+                    del self.connected_clients[existing_sid]
+                    break
 
             # Сохраняем информацию о подключении
             self.connected_clients[sid] = {
