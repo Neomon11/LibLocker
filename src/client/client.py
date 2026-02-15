@@ -18,10 +18,11 @@ from ..shared.models import ClientStatus
 
 logger = logging.getLogger(__name__)
 
-# Константы для повторного подключения
-INITIAL_RECONNECT_DELAY = 1  # Начальная задержка в секундах
-MAX_RECONNECT_DELAY = 300  # Максимальная задержка в секундах (5 минут)
-RECONNECT_BACKOFF_MULTIPLIER = 2  # Множитель для экспоненциального роста
+# Константы для повторного подключения Socket.IO
+# Используем экспоненциальную задержку с учетом нестабильного соединения
+INITIAL_RECONNECT_DELAY = 2  # Начальная задержка в секундах
+MAX_RECONNECT_DELAY = 60  # Максимальная задержка в секундах (1 минута для Socket.IO)
+RECONNECT_BACKOFF_MULTIPLIER = 1.5  # Множитель для экспоненциального роста
 
 
 class LibLockerClient:
@@ -29,11 +30,13 @@ class LibLockerClient:
 
     def __init__(self, server_url: str = "http://localhost:8765"):
         self.server_url = server_url
+        # Настройка Socket.IO для работы в условиях нестабильного соединения
         self.sio = socketio.AsyncClient(
             reconnection=True,
-            reconnection_attempts=0,  # Бесконечные попытки
-            reconnection_delay=1,
-            reconnection_delay_max=5,
+            reconnection_attempts=0,  # Бесконечные попытки переподключения
+            reconnection_delay=INITIAL_RECONNECT_DELAY,  # Начальная задержка 2 сек
+            reconnection_delay_max=MAX_RECONNECT_DELAY,  # Максимальная задержка 60 сек
+            randomization_factor=0.5,  # Добавляем случайность для избежания синхронизации
             logger=True,
             engineio_logger=True
         )
@@ -45,10 +48,10 @@ class LibLockerClient:
         self.mac_address = get_mac_address()
         self.client_id: Optional[int] = None
 
-        # Состояние
+        # Состояние подключения
         self.connected = False
         self.status = ClientStatus.OFFLINE
-        self.reconnect_delay = INITIAL_RECONNECT_DELAY  # Текущая задержка переподключения
+        self._connection_lock = asyncio.Lock()  # Для синхронизации состояния подключения
 
         # Callbacks для обработки команд
         self.on_session_start: Optional[Callable] = None
@@ -73,26 +76,28 @@ class LibLockerClient:
         @self.sio.event
         async def connect():
             """Обработка подключения к серверу"""
-            logger.info("Connected to server")
-            self.connected = True
-            await self._register_client()
+            async with self._connection_lock:
+                logger.info("Connected to server")
+                self.connected = True
+                await self._register_client()
 
-            # Уведомляем о подключении
-            if self.on_connected:
-                try:
-                    if asyncio.iscoroutinefunction(self.on_connected):
-                        await self.on_connected()
-                    else:
-                        self.on_connected()
-                except Exception as e:
-                    logger.error(f"Error calling on_connected: {e}", exc_info=True)
+                # Уведомляем о подключении
+                if self.on_connected:
+                    try:
+                        if asyncio.iscoroutinefunction(self.on_connected):
+                            await self.on_connected()
+                        else:
+                            self.on_connected()
+                    except Exception as e:
+                        logger.error(f"Error calling on_connected: {e}", exc_info=True)
 
         @self.sio.event
         async def disconnect():
             """Обработка отключения от сервера"""
-            logger.info("Disconnected from server")
-            self.connected = False
-            self.status = ClientStatus.OFFLINE
+            async with self._connection_lock:
+                logger.info("Disconnected from server")
+                self.connected = False
+                self.status = ClientStatus.OFFLINE
 
         @self.sio.event
         async def connection_ack(data):
@@ -271,17 +276,28 @@ class LibLockerClient:
                 logger.error(f"Error calling on_installation_monitor_toggle: {e}", exc_info=True)
 
     async def send_heartbeat(self, remaining_seconds: Optional[int] = None):
-        """Отправка heartbeat на сервер"""
+        """Отправка heartbeat на сервер с защитой от ошибок"""
         if not self.connected:
+            logger.debug("Skipping heartbeat - not connected")
             return
 
-        heartbeat_msg = HeartbeatMessage(
-            status=self.status.value,
-            remaining_seconds=remaining_seconds
-        )
+        try:
+            heartbeat_msg = HeartbeatMessage(
+                status=self.status.value,
+                remaining_seconds=remaining_seconds
+            )
 
-        await self.sio.emit('message', heartbeat_msg.to_message().to_dict())
-        logger.debug("Heartbeat sent")
+            await asyncio.wait_for(
+                self.sio.emit('message', heartbeat_msg.to_message().to_dict()),
+                timeout=5.0  # Таймаут 5 секунд для отправки
+            )
+            logger.debug("Heartbeat sent successfully")
+        except asyncio.TimeoutError:
+            logger.warning("Heartbeat send timeout - connection may be unstable")
+            # Не сбрасываем connected, Socket.IO обработает это автоматически
+        except Exception as e:
+            logger.error(f"Error sending heartbeat: {e}")
+            # Не сбрасываем connected, Socket.IO обработает это автоматически
 
     async def request_session_stop(self):
         """Запрос остановки сессии от клиента"""
@@ -307,12 +323,18 @@ class LibLockerClient:
         logger.info(f"Installation alert sent to server: {reason}")
 
     async def connect(self):
-        """Подключение к серверу"""
+        """
+        Подключение к серверу с обработкой ошибок.
+        Socket.IO автоматически переподключается при ошибках благодаря reconnection=True.
+        """
         try:
+            logger.info(f"Attempting to connect to {self.server_url}")
             await self.sio.connect(self.server_url)
-            logger.info(f"Connecting to {self.server_url}")
+            logger.info("Connection initiated successfully")
         except Exception as e:
-            logger.error(f"Error connecting to server: {e}")
+            logger.warning(f"Connection attempt failed: {e}")
+            # Socket.IO автоматически попытается переподключиться
+            # благодаря параметрам reconnection=True
 
     async def disconnect(self):
         """Отключение от сервера"""
@@ -320,32 +342,20 @@ class LibLockerClient:
 
     async def run(self):
         """
-        Запуск клиента с экспоненциальной задержкой переподключения.
+        Запуск клиента с автоматическим переподключением.
         
-        Пытается подключиться к серверу и отправляет heartbeat каждые 5 секунд.
-        При неудачном подключении использует экспоненциальную задержку с максимумом 5 минут.
+        Socket.IO автоматически обрабатывает переподключение с экспоненциальной задержкой.
+        Этот метод инициирует первое подключение и отправляет heartbeat каждые 5 секунд.
         """
-        # Отправка heartbeat каждые 5 секунд
         try:
+            # Инициируем первое подключение
+            # Socket.IO автоматически переподключится при разрыве соединения
+            await self.connect()
+            
+            # Основной цикл отправки heartbeat
             while True:
-                # Если не подключены, пытаемся подключиться
-                if not self.connected:
-                    await self.connect()
-                    if not self.connected:
-                        # Если подключение не удалось, используем экспоненциальную задержку
-                        logger.info(f"Connection failed, retrying in {self.reconnect_delay} seconds...")
-                        await asyncio.sleep(self.reconnect_delay)
-                        # Увеличиваем задержку для следующей попытки
-                        self.reconnect_delay = min(
-                            self.reconnect_delay * RECONNECT_BACKOFF_MULTIPLIER,
-                            MAX_RECONNECT_DELAY
-                        )
-                        continue
-                    else:
-                        # Успешное подключение - сбрасываем задержку
-                        self.reconnect_delay = INITIAL_RECONNECT_DELAY
+                await asyncio.sleep(5)  # Heartbeat каждые 5 секунд
                 
-                # Если подключены, отправляем heartbeat
                 if self.connected:
                     # Получаем remaining_seconds из callback если установлен
                     remaining_seconds = None
@@ -357,9 +367,12 @@ class LibLockerClient:
                             logger.error(f"Error getting remaining_seconds from callback {callback_name}: {e}")
                     
                     await self.send_heartbeat(remaining_seconds)
-                await asyncio.sleep(5)
+                else:
+                    logger.debug("Not connected - skipping heartbeat, Socket.IO will reconnect automatically")
+                    
         except asyncio.CancelledError:
             logger.info("Client stopping...")
+            raise
         finally:
             await self.disconnect()
 

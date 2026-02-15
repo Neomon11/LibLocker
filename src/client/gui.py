@@ -886,7 +886,14 @@ class MainClientWindow(QMainWindow):
         self.client_thread.installation_monitor_toggle.connect(
             self.on_installation_monitor_toggle, Qt.ConnectionType.QueuedConnection
         )
-        self.client_thread.start()
+        
+        # Проверяем настройку auto_connect перед запуском клиента
+        if self.config.auto_connect:
+            logger.info("Auto-connect enabled - starting client thread")
+            self.client_thread.start()
+        else:
+            logger.info("Auto-connect disabled - client thread not started")
+            logger.info("Use 'Connect' button or menu to manually connect")
 
         self.init_ui()
         self.init_tray_icon()
@@ -906,7 +913,7 @@ class MainClientWindow(QMainWindow):
         status_label.setFont(font)
         layout.addWidget(status_label)
 
-        self.connection_label = QLabel("Подключение к серверу...")
+        self.connection_label = QLabel("Подключение к серверу..." if self.config.auto_connect else "Ожидание подключения...")
         self.connection_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.connection_label)
 
@@ -932,6 +939,13 @@ class MainClientWindow(QMainWindow):
         
         # Разделитель
         tray_menu.addSeparator()
+        
+        # Действие "Подключиться" (только если auto_connect выключен)
+        if not self.config.auto_connect:
+            connect_action = QAction("🔌 Подключиться к серверу", self)
+            connect_action.triggered.connect(self.manual_connect)
+            tray_menu.addAction(connect_action)
+            tray_menu.addSeparator()
         
         # Действие "Поиск сервера"
         discover_action = QAction("🔍 Поиск сервера...", self)
@@ -968,6 +982,20 @@ class MainClientWindow(QMainWindow):
         self.show()
         self.raise_()
         self.activateWindow()
+    
+    def manual_connect(self):
+        """Ручное подключение к серверу (для режима без auto_connect)"""
+        if not self.client_thread.isRunning():
+            logger.info("Starting client thread manually")
+            self.connection_label.setText("Подключение к серверу...")
+            self.client_thread.start()
+        else:
+            logger.info("Client thread already running")
+            QMessageBox.information(
+                self,
+                "Подключение",
+                "Клиент уже подключен или пытается подключиться"
+            )
     
     def show_server_discovery(self):
         """Показать диалог поиска сервера"""
